@@ -30,29 +30,31 @@ export async function onRequestPost({ request, env }) {
                 if (password === env.ADMIN_KEY) {
                     return jsonResponse({ success: true, token: password });
                 }
-                return jsonResponse({ error: 'Invalid admin key' }, 401);
+                return jsonResponse({ error: 'Invalid admin passcode' }, 401);
             }
 
             const row = await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('admin_hash').first();
             if (!row || !row.value) {
-                // Not configured yet, accept verification
-                return jsonResponse({ success: true, token: password, warning: 'Admin key not yet set' });
+                return jsonResponse({ error: 'Admin passcode is not configured. Set ADMIN_KEY in Cloudflare Pages Environment Variables.' }, 401);
             }
 
             const hashed = await hashPassword(password);
             if (hashed === row.value) {
                 return jsonResponse({ success: true, token: password });
             }
-            return jsonResponse({ error: 'Invalid admin key' }, 401);
+            return jsonResponse({ error: 'Invalid admin passcode' }, 401);
         }
 
         if (action === 'setup') {
+            if (env.ADMIN_KEY) {
+                return jsonResponse({ error: 'Admin key is managed via environment variable ADMIN_KEY in Cloudflare dashboard.' }, 400);
+            }
             if (!newPassword || newPassword.length < 4) {
-                return jsonResponse({ error: 'Password must be at least 4 characters' }, 400);
+                return jsonResponse({ error: 'Passcode must be at least 4 characters' }, 400);
             }
             const existing = await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('admin_hash').first();
             if (existing && existing.value) {
-                return jsonResponse({ error: 'Admin key is already configured. Use change instead.' }, 400);
+                return jsonResponse({ error: 'Admin passcode is already configured. Use change instead.' }, 400);
             }
 
             const hashed = await hashPassword(newPassword);
@@ -60,16 +62,19 @@ export async function onRequestPost({ request, env }) {
                 'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'
             ).bind('admin_hash', hashed).run();
 
-            return jsonResponse({ success: true, message: 'Admin key configured successfully', token: newPassword });
+            return jsonResponse({ success: true, message: 'Admin passcode configured successfully', token: newPassword });
         }
 
         if (action === 'change') {
+            if (env.ADMIN_KEY) {
+                return jsonResponse({ error: 'Admin key is managed via environment variable ADMIN_KEY in Cloudflare dashboard.' }, 400);
+            }
             const isAuth = await checkAdminAuth(request, env);
             if (!isAuth) {
-                return jsonResponse({ error: 'Unauthorized to change admin key' }, 401);
+                return jsonResponse({ error: 'Unauthorized to change admin passcode' }, 401);
             }
             if (!newPassword || newPassword.length < 4) {
-                return jsonResponse({ error: 'New password must be at least 4 characters' }, 400);
+                return jsonResponse({ error: 'New passcode must be at least 4 characters' }, 400);
             }
 
             const hashed = await hashPassword(newPassword);
@@ -77,7 +82,7 @@ export async function onRequestPost({ request, env }) {
                 'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)'
             ).bind('admin_hash', hashed).run();
 
-            return jsonResponse({ success: true, message: 'Admin key updated successfully', token: newPassword });
+            return jsonResponse({ success: true, message: 'Admin passcode updated successfully', token: newPassword });
         }
 
         return jsonResponse({ error: 'Invalid action' }, 400);

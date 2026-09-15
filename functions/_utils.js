@@ -88,6 +88,11 @@ export async function checkAdminAuth(request, env) {
     const customHeader = request.headers.get('x-admin-key') || '';
     const token = authHeader.replace(/^Bearer\s+/i, '').trim() || customHeader.trim();
 
+    // Reject immediately if no token is provided
+    if (!token) {
+        return false;
+    }
+
     // 1. Check environment variable ADMIN_KEY if set in Cloudflare dashboard
     if (env.ADMIN_KEY) {
         return token === env.ADMIN_KEY;
@@ -98,10 +103,9 @@ export async function checkAdminAuth(request, env) {
         try {
             const adminSetting = await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('admin_hash').first();
             if (!adminSetting || !adminSetting.value) {
-                // If no admin key is configured yet, allow setup mode
-                return true;
+                // Fail-closed: unconfigured database blocks admin operations
+                return false;
             }
-            if (!token) return false;
             const hashed = await hashPassword(token);
             return hashed === adminSetting.value;
         } catch (e) {
@@ -110,5 +114,7 @@ export async function checkAdminAuth(request, env) {
         }
     }
 
-    return true;
+    // Default to reject (fail closed)
+    return false;
 }
+

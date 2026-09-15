@@ -16,7 +16,8 @@ const state = {
     activeQrLink: null,
     qrColor: '#000000',
     editingLinkId: null,
-    isAuthConfigured: false
+    isAuthConfigured: false,
+    isLocked: true
 };
 
 // DOM Elements
@@ -24,6 +25,17 @@ const elements = {
     themeToggleBtn: document.getElementById('themeToggleBtn'),
     deployGuideBtn: document.getElementById('deployGuideBtn'),
     authSettingsBtn: document.getElementById('authSettingsBtn'),
+    logoutBtn: document.getElementById('logoutBtn'),
+    statPill: document.getElementById('statPill'),
+    adminLockGate: document.getElementById('adminLockGate'),
+    lockGateTitle: document.getElementById('lockGateTitle'),
+    lockGateDesc: document.getElementById('lockGateDesc'),
+    lockGateForm: document.getElementById('lockGateForm'),
+    lockGateInput: document.getElementById('lockGateInput'),
+    lockGateSubmitBtn: document.getElementById('lockGateSubmitBtn'),
+    lockGateStatusMsg: document.getElementById('lockGateStatusMsg'),
+    shortenerBox: document.getElementById('shortenerBox'),
+    mgmtSection: document.getElementById('mgmtSection'),
     brandLogo: document.getElementById('brandLogo'),
     headerLinksCount: document.getElementById('headerLinksCount'),
     headerClicksCount: document.getElementById('headerClicksCount'),
@@ -106,9 +118,13 @@ const elements = {
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     initPrefix();
-    checkAuthStatus();
     setupEventListeners();
-    fetchLinks();
+    checkAuthStatus();
+    if (!state.adminToken) {
+        setLockedState(true);
+    } else {
+        fetchLinks();
+    }
 });
 
 function initTheme() {
@@ -129,20 +145,105 @@ function initPrefix() {
 }
 
 // -------------------------------------------------------------
+// Lock Screen & Auth State Management
+// -------------------------------------------------------------
+function setLockedState(isLocked) {
+    state.isLocked = isLocked;
+    if (isLocked) {
+        if (elements.adminLockGate) elements.adminLockGate.style.display = 'block';
+        if (elements.shortenerBox) elements.shortenerBox.style.display = 'none';
+        if (elements.mgmtSection) elements.mgmtSection.style.display = 'none';
+        if (elements.statPill) elements.statPill.style.display = 'none';
+        if (elements.logoutBtn) elements.logoutBtn.style.display = 'none';
+        state.links = [];
+        state.totalLinks = 0;
+        state.totalClicks = 0;
+        if (elements.linksListContainer) elements.linksListContainer.innerHTML = '';
+        if (elements.headerLinksCount) elements.headerLinksCount.textContent = '0';
+        if (elements.headerClicksCount) elements.headerClicksCount.textContent = '0';
+    } else {
+        if (elements.adminLockGate) elements.adminLockGate.style.display = 'none';
+        if (elements.shortenerBox) elements.shortenerBox.style.display = 'block';
+        if (elements.mgmtSection) elements.mgmtSection.style.display = 'block';
+        if (elements.statPill) elements.statPill.style.display = 'flex';
+        if (elements.logoutBtn) elements.logoutBtn.style.display = 'inline-flex';
+    }
+}
+
+function handleLogout() {
+    state.adminToken = '';
+    localStorage.removeItem('omnilink_token');
+    setLockedState(true);
+    showToast('Dashboard locked');
+}
+
+async function handleLockGateSubmit(e) {
+    e.preventDefault();
+    const pass = elements.lockGateInput.value.trim();
+    if (!pass) return;
+
+    elements.lockGateSubmitBtn.disabled = true;
+    elements.lockGateSubmitBtn.innerHTML = '<span>Verifying...</span>';
+    elements.lockGateStatusMsg.style.display = 'none';
+
+    const action = !state.isAuthConfigured ? 'setup' : 'verify';
+    const body = action === 'setup' ? { action, newPassword: pass } : { action, password: pass };
+
+    try {
+        const res = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            state.adminToken = pass;
+            localStorage.setItem('omnilink_token', pass);
+            state.isAuthConfigured = true;
+            elements.lockGateInput.value = '';
+            setLockedState(false);
+            showToast(action === 'setup' ? 'Admin passcode configured & unlocked!' : 'Dashboard unlocked successfully!');
+            await fetchLinks();
+        } else {
+            elements.lockGateStatusMsg.textContent = data.error || 'Incorrect passcode';
+            elements.lockGateStatusMsg.style.display = 'block';
+            elements.lockGateInput.focus();
+        }
+    } catch (err) {
+        elements.lockGateStatusMsg.textContent = 'Failed to connect to authentication server';
+        elements.lockGateStatusMsg.style.display = 'block';
+    } finally {
+        elements.lockGateSubmitBtn.disabled = false;
+        elements.lockGateSubmitBtn.innerHTML = `
+            <span>Unlock Dashboard</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+        `;
+    }
+}
+
+// -------------------------------------------------------------
 // Authentication Handling
 // -------------------------------------------------------------
 async function checkAuthStatus() {
     try {
         const res = await fetch('/api/auth');
         const data = await res.json();
-        state.isAuthConfigured = data.isConfigured;
+        state.isAuthConfigured = Boolean(data.isConfigured);
 
         if (state.isAuthConfigured) {
             elements.authSettingsBtn.title = 'Admin Security (Configured)';
             elements.authSettingsBtn.classList.remove('active');
+            if (elements.lockGateTitle) elements.lockGateTitle.textContent = 'Admin Access Required';
+            if (elements.lockGateDesc) elements.lockGateDesc.textContent = 'OmniLink is private. Enter your master admin passcode to unlock link management and analytics.';
+            if (elements.lockGateInput) elements.lockGateInput.placeholder = 'Enter admin passcode';
         } else {
             elements.authSettingsBtn.title = 'Set Admin Security (Action Recommended)';
             elements.authSettingsBtn.classList.add('active');
+            if (elements.lockGateTitle) elements.lockGateTitle.textContent = 'Setup Master Admin Passcode';
+            if (elements.lockGateDesc) elements.lockGateDesc.textContent = 'OmniLink is unconfigured. Set your Master Admin Passcode below (or configure ADMIN_KEY in Cloudflare Pages).';
+            if (elements.lockGateInput) elements.lockGateInput.placeholder = 'Set new admin passcode (min 4 chars)';
         }
     } catch (e) {
         console.warn('Auth check error:', e);
@@ -164,6 +265,16 @@ function getAuthHeaders() {
 function setupEventListeners() {
     // Theme toggle
     elements.themeToggleBtn.addEventListener('click', toggleTheme);
+
+    // Logout / Lock toggle
+    if (elements.logoutBtn) {
+        elements.logoutBtn.addEventListener('click', handleLogout);
+    }
+
+    // Lock gate form
+    if (elements.lockGateForm) {
+        elements.lockGateForm.addEventListener('submit', handleLockGateSubmit);
+    }
 
     // Protocol recognition
     elements.mainUrlInput.addEventListener('input', updateProtocolBadge);
@@ -366,11 +477,12 @@ async function fetchLinks() {
         });
 
         if (res.status === 401) {
-            promptAuth('Admin Access Required', 'Enter your admin passcode to view links and analytics.');
+            setLockedState(true);
             return;
         }
 
         const data = await res.json();
+        setLockedState(false);
         state.links = data.links || [];
         state.totalLinks = data.total || 0;
         state.totalClicks = data.total_clicks || 0;
@@ -955,6 +1067,10 @@ function openAuthModal() {
         elements.authModalTitle.textContent = 'Setup Master Admin Passcode';
         elements.authModalDesc.textContent = 'Protect your OmniLink dashboard with an admin passcode. Only you will be able to create, edit, or view analytics.';
         elements.adminPassLabel.textContent = 'Set New Admin Passcode (min 4 chars)';
+    } else if (state.adminToken) {
+        elements.authModalTitle.textContent = 'Change Admin Passcode';
+        elements.authModalDesc.textContent = 'Set a new master passcode for your OmniLink instance.';
+        elements.adminPassLabel.textContent = 'New Admin Passcode (min 4 chars)';
     } else {
         elements.authModalTitle.textContent = 'Admin Authentication';
         elements.authModalDesc.textContent = 'Enter your admin passcode to unlock the dashboard and manage links.';
@@ -978,13 +1094,19 @@ async function handleAuthSubmit(e) {
     const pass = elements.adminPassInput.value.trim();
     if (!pass) return;
 
-    const action = !state.isAuthConfigured ? 'setup' : 'verify';
-    const body = action === 'setup' ? { action, newPassword: pass } : { action, password: pass };
+    let action = 'verify';
+    if (!state.isAuthConfigured) {
+        action = 'setup';
+    } else if (state.adminToken) {
+        action = 'change';
+    }
+
+    const body = (action === 'setup' || action === 'change') ? { action, newPassword: pass } : { action, password: pass };
 
     try {
         const res = await fetch('/api/auth', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify(body)
         });
 
@@ -995,7 +1117,8 @@ async function handleAuthSubmit(e) {
             state.isAuthConfigured = true;
             elements.authSettingsBtn.classList.remove('active');
             closeModal(elements.authModal);
-            showToast(action === 'setup' ? 'Admin passcode configured!' : 'Admin unlocked successfully!');
+            setLockedState(false);
+            showToast(action === 'setup' ? 'Admin passcode configured!' : (action === 'change' ? 'Admin passcode changed successfully!' : 'Admin unlocked successfully!'));
             fetchLinks();
         } else {
             elements.authStatusMsg.textContent = data.error || 'Invalid passcode';

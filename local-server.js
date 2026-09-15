@@ -82,14 +82,15 @@ function checkAdminAuth(req) {
     const customHeader = req.headers['x-admin-key'] || '';
     const token = authHeader.replace(/^Bearer\s+/i, '').trim() || (typeof customHeader === 'string' ? customHeader.trim() : '');
 
+    if (!token) return false;
+
     try {
         const stmt = db.prepare('SELECT value FROM settings WHERE key = ?');
         const adminSetting = stmt.get('admin_hash');
         if (!adminSetting || !adminSetting.value) {
-            // First time setup - allow setup actions
-            return true;
+            // Fail closed: unconfigured DB blocks admin operations
+            return false;
         }
-        if (!token) return false;
         const hashed = hashPassword(token);
         return hashed === adminSetting.value;
     } catch (e) {
@@ -214,13 +215,13 @@ const server = http.createServer(async (req, res) => {
                     if (!password) return sendJson(res, { error: 'Password is required' }, 400);
                     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_hash');
                     if (!row || !row.value) {
-                        return sendJson(res, { success: true, token: password, warning: 'Admin key not yet set' });
+                        return sendJson(res, { error: 'Admin passcode is not configured' }, 401);
                     }
                     const hashed = hashPassword(password);
                     if (hashed === row.value) {
                         return sendJson(res, { success: true, token: password });
                     }
-                    return sendJson(res, { error: 'Invalid admin key' }, 401);
+                    return sendJson(res, { error: 'Invalid admin passcode' }, 401);
                 }
 
                 if (action === 'setup') {

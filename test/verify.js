@@ -73,6 +73,16 @@ async function runTests() {
 
     const authHeaders = { 'Authorization': `Bearer ${adminToken}`, 'x-admin-key': adminToken };
 
+    // 2b. Test Fail-Closed Auth Protection
+    console.log('2b. Testing fail-closed authentication protection...');
+    const unauthLinks = await request('GET', '/api/links');
+    assert.strictEqual(unauthLinks.status, 401, 'Unauthenticated GET /api/links must return 401');
+    const wrongAuthLinks = await request('GET', '/api/links', null, { 'Authorization': 'Bearer wrong-passcode' });
+    assert.strictEqual(wrongAuthLinks.status, 401, 'Wrong auth GET /api/links must return 401');
+    const unauthPost = await request('POST', '/api/links', { target_url: 'https://evil.com' });
+    assert.strictEqual(unauthPost.status, 401, 'Unauthenticated POST /api/links must return 401');
+    console.log('✔ Fail-closed admin authentication verified.');
+
     // 3. Create a normal web link
     console.log('3. Testing standard URL shortening...');
     const createRes = await request('POST', '/api/links', {
