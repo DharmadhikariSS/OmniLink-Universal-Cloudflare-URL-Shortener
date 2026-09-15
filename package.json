@@ -1,0 +1,21 @@
+{
+  "name": "omnilink-url-shortener",
+  "version": "1.0.0",
+  "description": "All-rounder URL shortener with zero limitations, free Cloudflare edge hosting, and local development",
+  "type": "module",
+  "scripts": {
+    "dev": "node local-server.js",
+    "deploy": "npx wrangler pages deploy public --project-name omnilink",
+    "d1:init": "npx wrangler d1 execute omnilink-db --file=./schema.sql",
+    "test": "node test/verify.js"
+  },
+  "keywords": [
+    "url-shortener",
+    "cloudflare-pages",
+    "cloudflare-d1",
+    "edge-computing",
+    "analytics"
+  ],
+  "author": "",
+  "license": "MIT"
+}

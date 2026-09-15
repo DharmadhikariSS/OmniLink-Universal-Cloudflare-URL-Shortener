@@ -1,0 +1,12 @@
+name = "omnilink"
+compatibility_date = "2024-09-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "public"
+
+# Cloudflare D1 Database Binding
+# When deploying to Cloudflare, replace database_id with your D1 database ID from:
+# npx wrangler d1 create omnilink-db
+[[d1_databases]]
+binding = "DB"
+database_name = "omnilink-db"
+database_id = "cbf0cd05-c937-4e5b-b609-27320f864e7d"

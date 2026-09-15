@@ -1,0 +1,1109 @@
+/**
+ * OmniLink - Frontend Application Engine
+ * Minimalist SaaS (Dub.co style) interface logic
+ */
+
+// Application State
+const state = {
+    links: [],
+    totalLinks: 0,
+    totalClicks: 0,
+    filter: 'all',
+    sort: 'newest',
+    search: '',
+    adminToken: localStorage.getItem('omnilink_token') || '',
+    theme: localStorage.getItem('omnilink_theme') || 'dark',
+    activeQrLink: null,
+    qrColor: '#000000',
+    editingLinkId: null,
+    isAuthConfigured: false
+};
+
+// DOM Elements
+const elements = {
+    themeToggleBtn: document.getElementById('themeToggleBtn'),
+    deployGuideBtn: document.getElementById('deployGuideBtn'),
+    authSettingsBtn: document.getElementById('authSettingsBtn'),
+    brandLogo: document.getElementById('brandLogo'),
+    headerLinksCount: document.getElementById('headerLinksCount'),
+    headerClicksCount: document.getElementById('headerClicksCount'),
+    filteredLinksCount: document.getElementById('filteredLinksCount'),
+    protocolBadge: document.getElementById('protocolBadge'),
+    mainUrlInput: document.getElementById('mainUrlInput'),
+    shortenerForm: document.getElementById('shortenerForm'),
+    shortenSubmitBtn: document.getElementById('shortenSubmitBtn'),
+    domainPrefix: document.getElementById('domainPrefix'),
+    linksListContainer: document.getElementById('linksListContainer'),
+    emptyState: document.getElementById('emptyState'),
+    searchInput: document.getElementById('searchInput'),
+    sortSelect: document.getElementById('sortSelect'),
+    exportCsvBtn: document.getElementById('exportCsvBtn'),
+    filterTabs: document.querySelectorAll('.filter-tab'),
+    toastContainer: document.getElementById('toastContainer'),
+
+    // Tabs
+    tabSingle: document.getElementById('tabSingle'),
+    tabBulk: document.getElementById('tabBulk'),
+    bulkFormWrap: document.getElementById('bulkFormWrap'),
+    bulkTextarea: document.getElementById('bulkTextarea'),
+    bulkSubmitBtn: document.getElementById('bulkSubmitBtn'),
+
+    // Option chips & panels
+    optChips: document.querySelectorAll('.option-chip'),
+    customSlugInput: document.getElementById('customSlugInput'),
+    customTitleInput: document.getElementById('customTitleInput'),
+    utmSource: document.getElementById('utmSource'),
+    utmMedium: document.getElementById('utmMedium'),
+    utmCampaign: document.getElementById('utmCampaign'),
+    linkPasswordInput: document.getElementById('linkPasswordInput'),
+    expiresAtInput: document.getElementById('expiresAtInput'),
+    maxClicksInput: document.getElementById('maxClicksInput'),
+
+    // Modals
+    qrModal: document.getElementById('qrModal'),
+    qrCanvas: document.getElementById('qrCanvas'),
+    qrLinkText: document.getElementById('qrLinkText'),
+    downloadPngBtn: document.getElementById('downloadPngBtn'),
+    downloadSvgBtn: document.getElementById('downloadSvgBtn'),
+    colorSwatches: document.querySelectorAll('.color-swatch'),
+
+    editModal: document.getElementById('editModal'),
+    editLinkForm: document.getElementById('editLinkForm'),
+    editLinkId: document.getElementById('editLinkId'),
+    editTargetUrl: document.getElementById('editTargetUrl'),
+    editSlug: document.getElementById('editSlug'),
+    editTitle: document.getElementById('editTitle'),
+    editExpiresAt: document.getElementById('editExpiresAt'),
+    editMaxClicks: document.getElementById('editMaxClicks'),
+    editPassword: document.getElementById('editPassword'),
+    editRemovePassword: document.getElementById('editRemovePassword'),
+
+    authModal: document.getElementById('authModal'),
+    authForm: document.getElementById('authForm'),
+    adminPassInput: document.getElementById('adminPassInput'),
+    authModalTitle: document.getElementById('authModalTitle'),
+    authModalDesc: document.getElementById('authModalDesc'),
+    authStatusMsg: document.getElementById('authStatusMsg'),
+    deployModal: document.getElementById('deployModal'),
+
+    // Analytics Drawer
+    analyticsDrawer: document.getElementById('analyticsDrawer'),
+    closeDrawerBtn: document.getElementById('closeDrawerBtn'),
+    drawerLinkTitle: document.getElementById('drawerLinkTitle'),
+    drawerShortUrl: document.getElementById('drawerShortUrl'),
+    drawerTotalClicks: document.getElementById('drawerTotalClicks'),
+    drawerUniqueClicks: document.getElementById('drawerUniqueClicks'),
+    timelineChartContainer: document.getElementById('timelineChartContainer'),
+    countriesList: document.getElementById('countriesList'),
+    referrersList: document.getElementById('referrersList'),
+    devicesList: document.getElementById('devicesList'),
+    recentClicksList: document.getElementById('recentClicksList')
+};
+
+// -------------------------------------------------------------
+// Initialization
+// -------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    initPrefix();
+    checkAuthStatus();
+    setupEventListeners();
+    fetchLinks();
+});
+
+function initTheme() {
+    document.documentElement.setAttribute('data-theme', state.theme);
+}
+
+function toggleTheme() {
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', state.theme);
+    localStorage.setItem('omnilink_theme', state.theme);
+    showToast(`Switched to ${state.theme} mode`);
+}
+
+function initPrefix() {
+    if (elements.domainPrefix) {
+        elements.domainPrefix.textContent = window.location.host + '/';
+    }
+}
+
+// -------------------------------------------------------------
+// Authentication Handling
+// -------------------------------------------------------------
+async function checkAuthStatus() {
+    try {
+        const res = await fetch('/api/auth');
+        const data = await res.json();
+        state.isAuthConfigured = data.isConfigured;
+
+        if (state.isAuthConfigured) {
+            elements.authSettingsBtn.title = 'Admin Security (Configured)';
+            elements.authSettingsBtn.classList.remove('active');
+        } else {
+            elements.authSettingsBtn.title = 'Set Admin Security (Action Recommended)';
+            elements.authSettingsBtn.classList.add('active');
+        }
+    } catch (e) {
+        console.warn('Auth check error:', e);
+    }
+}
+
+function getAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (state.adminToken) {
+        headers['Authorization'] = `Bearer ${state.adminToken}`;
+        headers['x-admin-key'] = state.adminToken;
+    }
+    return headers;
+}
+
+// -------------------------------------------------------------
+// Event Listeners
+// -------------------------------------------------------------
+function setupEventListeners() {
+    // Theme toggle
+    elements.themeToggleBtn.addEventListener('click', toggleTheme);
+
+    // Protocol recognition
+    elements.mainUrlInput.addEventListener('input', updateProtocolBadge);
+
+    // Tabs
+    elements.tabSingle.addEventListener('click', () => switchTab('single'));
+    elements.tabBulk.addEventListener('click', () => switchTab('bulk'));
+
+    // Option Chips
+    elements.optChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            const targetId = chip.getAttribute('data-target');
+            const panel = document.getElementById(targetId);
+            if (!panel) return;
+            const isOpen = panel.classList.contains('open');
+            panel.classList.toggle('open', !isOpen);
+            chip.classList.toggle('active', !isOpen);
+        });
+    });
+
+    // Form Submissions
+    elements.shortenerForm.addEventListener('submit', handleSingleShorten);
+    elements.bulkSubmitBtn.addEventListener('click', handleBulkShorten);
+
+    // Search & Filter & Sort
+    let searchDebounce = null;
+    elements.searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => {
+            state.search = e.target.value.trim();
+            fetchLinks();
+        }, 250);
+    });
+
+    elements.sortSelect.addEventListener('change', (e) => {
+        state.sort = e.target.value;
+        fetchLinks();
+    });
+
+    elements.filterTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            elements.filterTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            state.filter = tab.getAttribute('data-status');
+            fetchLinks();
+        });
+    });
+
+    // CSV Export
+    elements.exportCsvBtn.addEventListener('click', handleExportCsv);
+
+    // Modals
+    elements.deployGuideBtn.addEventListener('click', () => openModal(elements.deployModal));
+    elements.authSettingsBtn.addEventListener('click', openAuthModal);
+    elements.authForm.addEventListener('submit', handleAuthSubmit);
+
+    // Modal Close buttons
+    document.querySelectorAll('.close-modal-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = btn.getAttribute('data-close');
+            if (target) closeModal(document.getElementById(target));
+        });
+    });
+
+    // Close on backdrop click
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal(modal);
+        });
+    });
+
+    // Analytics Drawer Close
+    elements.closeDrawerBtn.addEventListener('click', closeAnalyticsDrawer);
+    elements.analyticsDrawer.addEventListener('click', (e) => {
+        if (e.target === elements.analyticsDrawer) closeAnalyticsDrawer();
+    });
+
+    // QR Color Swatches
+    elements.colorSwatches.forEach(swatch => {
+        swatch.addEventListener('click', () => {
+            elements.colorSwatches.forEach(s => s.classList.remove('selected'));
+            swatch.classList.add('selected');
+            state.qrColor = swatch.getAttribute('data-color');
+            if (state.activeQrLink) {
+                renderQrCode(state.activeQrLink);
+            }
+        });
+    });
+
+    elements.downloadPngBtn.addEventListener('click', downloadQrPng);
+    elements.downloadSvgBtn.addEventListener('click', downloadQrSvg);
+
+    // Edit link form
+    elements.editLinkForm.addEventListener('submit', handleEditSubmit);
+
+    // Keyboard ESC to close
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.open').forEach(m => closeModal(m));
+            closeAnalyticsDrawer();
+        }
+    });
+}
+
+// -------------------------------------------------------------
+// Protocol Detection
+// -------------------------------------------------------------
+function updateProtocolBadge() {
+    const val = elements.mainUrlInput.value.trim().toLowerCase();
+    const badge = elements.protocolBadge;
+
+    if (!val) {
+        badge.textContent = 'LINK';
+        badge.classList.remove('active');
+        return;
+    }
+
+    badge.classList.add('active');
+    if (val.startsWith('magnet:')) {
+        badge.textContent = 'MAGNET';
+    } else if (val.startsWith('mailto:')) {
+        badge.textContent = 'EMAIL';
+    } else if (val.startsWith('tel:')) {
+        badge.textContent = 'PHONE';
+    } else if (val.startsWith('whatsapp:') || val.includes('wa.me')) {
+        badge.textContent = 'WHATSAPP';
+    } else if (val.startsWith('tg:') || val.includes('t.me')) {
+        badge.textContent = 'TELEGRAM';
+    } else if (val.startsWith('ftp:')) {
+        badge.textContent = 'FTP';
+    } else if (val.startsWith('http://')) {
+        badge.textContent = 'HTTP';
+    } else if (val.startsWith('https://')) {
+        badge.textContent = 'HTTPS';
+    } else if (/^[a-z][a-z0-9+.-]*:/.test(val)) {
+        badge.textContent = 'DEEP LINK';
+    } else {
+        badge.textContent = 'WEB URL';
+    }
+}
+
+// -------------------------------------------------------------
+// Tab Switching
+// -------------------------------------------------------------
+function switchTab(mode) {
+    if (mode === 'single') {
+        elements.tabSingle.classList.add('active');
+        elements.tabBulk.classList.remove('active');
+        elements.shortenerForm.style.display = 'block';
+        elements.bulkFormWrap.classList.remove('open');
+    } else {
+        elements.tabBulk.classList.add('active');
+        elements.tabSingle.classList.remove('active');
+        elements.shortenerForm.style.display = 'none';
+        elements.bulkFormWrap.classList.add('open');
+    }
+}
+
+// -------------------------------------------------------------
+// UTM Builder Helper
+// -------------------------------------------------------------
+function buildFinalUrl(rawUrl) {
+    let url = rawUrl.trim();
+    if (!url) return '';
+
+    const utmSource = elements.utmSource.value.trim();
+    const utmMedium = elements.utmMedium.value.trim();
+    const utmCampaign = elements.utmCampaign.value.trim();
+
+    if (!utmSource && !utmMedium && !utmCampaign) {
+        return url;
+    }
+
+    try {
+        // Attempt URL parsing for HTTP/S URLs
+        const dummyPrefix = url.includes('://') ? '' : 'https://';
+        const urlObj = new URL(dummyPrefix + url);
+        if (utmSource) urlObj.searchParams.set('utm_source', utmSource);
+        if (utmMedium) urlObj.searchParams.set('utm_medium', utmMedium);
+        if (utmCampaign) urlObj.searchParams.set('utm_campaign', utmCampaign);
+        return dummyPrefix ? urlObj.toString().replace('https://', '') : urlObj.toString();
+    } catch (e) {
+        return url;
+    }
+}
+
+// -------------------------------------------------------------
+// Fetch & Render Links
+// -------------------------------------------------------------
+async function fetchLinks() {
+    try {
+        const query = new URLSearchParams({
+            status: state.filter,
+            sort: state.sort,
+            search: state.search
+        });
+
+        const res = await fetch(`/api/links?${query.toString()}`, {
+            headers: getAuthHeaders()
+        });
+
+        if (res.status === 401) {
+            promptAuth('Admin Access Required', 'Enter your admin passcode to view links and analytics.');
+            return;
+        }
+
+        const data = await res.json();
+        state.links = data.links || [];
+        state.totalLinks = data.total || 0;
+        state.totalClicks = data.total_clicks || 0;
+
+        updateDashboardCounters();
+        renderLinksList();
+    } catch (e) {
+        console.error('Failed to load links:', e);
+        showToast('Unable to load links', 'error');
+    }
+}
+
+function updateDashboardCounters() {
+    elements.headerLinksCount.textContent = state.totalLinks;
+    elements.headerClicksCount.textContent = state.totalClicks.toLocaleString();
+    elements.filteredLinksCount.textContent = state.links.length;
+
+    // Filter tab counts
+    const now = Date.now();
+    let countActive = 0;
+    let countPaused = 0;
+    let countExpired = 0;
+    let countProtected = 0;
+
+    state.links.forEach(link => {
+        if (link.is_active === 0) {
+            countPaused++;
+        } else if (
+            (link.expires_at && new Date(link.expires_at).getTime() < now) ||
+            (link.max_clicks !== null && link.clicks_count >= link.max_clicks)
+        ) {
+            countExpired++;
+        } else {
+            countActive++;
+        }
+        if (link.has_password) countProtected++;
+    });
+
+    const elCountAll = document.getElementById('countAll');
+    const elCountActive = document.getElementById('countActive');
+    const elCountPaused = document.getElementById('countPaused');
+    const elCountExpired = document.getElementById('countExpired');
+    const elCountProtected = document.getElementById('countProtected');
+
+    if (elCountAll) elCountAll.textContent = state.links.length;
+    if (elCountActive) elCountActive.textContent = countActive;
+    if (elCountPaused) elCountPaused.textContent = countPaused;
+    if (elCountExpired) elCountExpired.textContent = countExpired;
+    if (elCountProtected) elCountProtected.textContent = countProtected;
+}
+
+function renderLinksList() {
+    const container = elements.linksListContainer;
+    container.innerHTML = '';
+
+    if (state.links.length === 0) {
+        elements.emptyState.style.display = 'block';
+        return;
+    }
+
+    elements.emptyState.style.display = 'none';
+    const origin = window.location.origin;
+
+    state.links.forEach(link => {
+        const shortUrl = `${origin}/${link.slug}`;
+        const isExpired = (link.expires_at && new Date(link.expires_at).getTime() < Date.now()) ||
+                          (link.max_clicks !== null && link.clicks_count >= link.max_clicks);
+
+        let statusBadge = '';
+        if (link.is_active === 0) {
+            statusBadge = '<span class="badge badge-paused">Paused</span>';
+        } else if (isExpired) {
+            statusBadge = '<span class="badge badge-expired">Expired</span>';
+        } else {
+            statusBadge = '<span class="badge badge-active">Active</span>';
+        }
+
+        const passwordBadge = link.has_password
+            ? '<span class="badge badge-protected" title="Protected with passcode">🔒 PIN</span>'
+            : '';
+
+        const card = document.createElement('div');
+        card.className = 'link-card';
+        card.innerHTML = `
+            <div class="link-card-top">
+                <div class="link-main-info">
+                    <div class="link-favicon">${getProtocolLetter(link.target_url)}</div>
+                    <div class="link-details">
+                        <div class="link-title-row">
+                            <span class="link-title" title="${escapeHtml(link.title || link.target_url)}">
+                                ${escapeHtml(link.title || link.target_url)}
+                            </span>
+                            ${statusBadge}
+                            ${passwordBadge}
+                        </div>
+                        <div class="link-urls-row">
+                            <a href="${shortUrl}" target="_blank" class="short-url-link" title="Open short link in new tab">
+                                ${window.location.host}/${escapeHtml(link.slug)}
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            </a>
+                            <a href="${escapeHtml(link.target_url)}" target="_blank" class="target-url-preview" title="${escapeHtml(link.target_url)}">
+                                ↳ ${escapeHtml(link.target_url)}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="click-pill" title="View detailed click analytics" data-analytics="${link.id}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"></path><path d="M12 20V4"></path><path d="M6 20v-6"></path></svg>
+                    <span>${link.clicks_count.toLocaleString()} clicks</span>
+                </div>
+            </div>
+
+            <div class="link-card-bottom">
+                <div class="link-metrics">
+                    <span>Created ${formatRelativeTime(link.created_at)}</span>
+                    ${link.expires_at ? `<span>Expires ${new Date(link.expires_at).toLocaleDateString()}</span>` : ''}
+                    ${link.max_clicks ? `<span>Limit: ${link.clicks_count}/${link.max_clicks}</span>` : ''}
+                </div>
+
+                <div class="link-action-buttons">
+                    <button class="btn-action" data-copy="${shortUrl}" title="Copy short link">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        Copy
+                    </button>
+                    <button class="btn-action" data-qr="${link.id}" title="Generate QR Code">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                        QR Code
+                    </button>
+                    <button class="btn-action" data-analytics="${link.id}" title="Analytics & Insights">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+                        Analytics
+                    </button>
+                    <button class="btn-action" data-toggle="${link.id}" title="${link.is_active ? 'Pause link' : 'Activate link'}">
+                        ${link.is_active ? 'Pause' : 'Activate'}
+                    </button>
+                    <button class="btn-action" data-edit="${link.id}" title="Edit destination or settings">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                        Edit
+                    </button>
+                    <button class="btn-action btn-danger" data-delete="${link.id}" title="Delete link">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // Action Handlers
+        card.querySelector('[data-copy]').addEventListener('click', (e) => {
+            copyToClipboard(e.currentTarget.getAttribute('data-copy'));
+        });
+        card.querySelector('[data-qr]').addEventListener('click', () => {
+            openQrModal(link);
+        });
+        card.querySelectorAll('[data-analytics]').forEach(el => {
+            el.addEventListener('click', () => openAnalyticsDrawer(link.id));
+        });
+        card.querySelector('[data-toggle]').addEventListener('click', () => {
+            toggleLinkStatus(link.id);
+        });
+        card.querySelector('[data-edit]').addEventListener('click', () => {
+            openEditModal(link);
+        });
+        card.querySelector('[data-delete]').addEventListener('click', () => {
+            deleteLink(link.id, link.slug);
+        });
+
+        container.appendChild(card);
+    });
+}
+
+// -------------------------------------------------------------
+// Shorten Actions
+// -------------------------------------------------------------
+async function handleSingleShorten(e) {
+    e.preventDefault();
+    const rawUrl = elements.mainUrlInput.value.trim();
+    if (!rawUrl) return;
+
+    const finalTargetUrl = buildFinalUrl(rawUrl);
+    const customSlug = elements.customSlugInput.value.trim();
+    const title = elements.customTitleInput.value.trim();
+    const password = elements.linkPasswordInput.value.trim();
+    const expiresAt = elements.expiresAtInput.value ? new Date(elements.expiresAtInput.value).toISOString() : null;
+    const maxClicks = elements.maxClicksInput.value ? parseInt(elements.maxClicksInput.value, 10) : null;
+
+    elements.shortenSubmitBtn.disabled = true;
+    elements.shortenSubmitBtn.style.opacity = '0.7';
+
+    try {
+        const res = await fetch('/api/links', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                target_url: finalTargetUrl,
+                custom_slug: customSlug || undefined,
+                title: title || undefined,
+                password: password || undefined,
+                expires_at: expiresAt,
+                max_clicks: maxClicks
+            })
+        });
+
+        const data = await res.json();
+        if (res.status === 401) {
+            promptAuth('Admin Access Required', 'Please enter your admin passcode to create links.');
+            return;
+        }
+
+        if (!res.ok) {
+            showToast(data.error || 'Failed to shorten link', 'error');
+            return;
+        }
+
+        // Success
+        showToast('Link created successfully!');
+        const shortUrl = `${window.location.origin}/${data.link.slug}`;
+        copyToClipboard(shortUrl, 'Short link copied to clipboard!');
+
+        // Reset form inputs
+        elements.mainUrlInput.value = '';
+        elements.customSlugInput.value = '';
+        elements.customTitleInput.value = '';
+        elements.linkPasswordInput.value = '';
+        elements.expiresAtInput.value = '';
+        elements.maxClicksInput.value = '';
+        elements.utmSource.value = '';
+        elements.utmMedium.value = '';
+        elements.utmCampaign.value = '';
+        updateProtocolBadge();
+
+        // Refresh links list
+        fetchLinks();
+
+    } catch (err) {
+        console.error('Error creating link:', err);
+        showToast('Network error while creating link', 'error');
+    } finally {
+        elements.shortenSubmitBtn.disabled = false;
+        elements.shortenSubmitBtn.style.opacity = '1';
+    }
+}
+
+async function handleBulkShorten() {
+    const text = elements.bulkTextarea.value.trim();
+    if (!text) {
+        showToast('Please paste at least one URL', 'error');
+        return;
+    }
+
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const urls = [];
+
+    lines.forEach(line => {
+        const parts = line.split(',');
+        const target = parts[0].trim();
+        const slug = parts[1] ? parts[1].trim() : undefined;
+        if (target) {
+            urls.push({ url: target, slug });
+        }
+    });
+
+    if (urls.length === 0) return;
+
+    elements.bulkSubmitBtn.disabled = true;
+    try {
+        const res = await fetch('/api/links', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ bulk: true, urls })
+        });
+        const data = await res.json();
+        if (res.status === 401) {
+            promptAuth('Admin Access Required', 'Enter passcode to create links.');
+            return;
+        }
+        if (res.ok && data.success) {
+            showToast(`Successfully created ${data.created.length} short links!`);
+            elements.bulkTextarea.value = '';
+            switchTab('single');
+            fetchLinks();
+        } else {
+            showToast(data.error || 'Error processing batch', 'error');
+        }
+    } catch (e) {
+        showToast('Failed to create bulk links', 'error');
+    } finally {
+        elements.bulkSubmitBtn.disabled = false;
+    }
+}
+
+// -------------------------------------------------------------
+// Status Toggle & Delete
+// -------------------------------------------------------------
+async function toggleLinkStatus(linkId) {
+    try {
+        const res = await fetch(`/api/links/${linkId}`, {
+            method: 'PATCH',
+            headers: getAuthHeaders()
+        });
+        if (res.ok) {
+            const data = await res.json();
+            showToast(data.is_active ? 'Link activated' : 'Link paused');
+            fetchLinks();
+        } else {
+            showToast('Failed to toggle status', 'error');
+        }
+    } catch (e) {
+        showToast('Network error', 'error');
+    }
+}
+
+async function deleteLink(linkId, slug) {
+    if (!confirm(`Are you sure you want to permanently delete "/${slug}"? Click stats will also be removed.`)) {
+        return;
+    }
+    try {
+        const res = await fetch(`/api/links/${linkId}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        if (res.ok) {
+            showToast('Link deleted');
+            fetchLinks();
+        } else {
+            showToast('Failed to delete link', 'error');
+        }
+    } catch (e) {
+        showToast('Network error', 'error');
+    }
+}
+
+// -------------------------------------------------------------
+// Edit Link Modal
+// -------------------------------------------------------------
+function openEditModal(link) {
+    state.editingLinkId = link.id;
+    elements.editLinkId.value = link.id;
+    elements.editTargetUrl.value = link.target_url;
+    elements.editSlug.value = link.slug;
+    elements.editTitle.value = link.title || '';
+    elements.editExpiresAt.value = link.expires_at ? link.expires_at.slice(0, 16) : '';
+    elements.editMaxClicks.value = link.max_clicks || '';
+    elements.editPassword.value = '';
+    elements.editRemovePassword.checked = false;
+
+    openModal(elements.editModal);
+}
+
+async function handleEditSubmit(e) {
+    e.preventDefault();
+    const id = state.editingLinkId;
+    if (!id) return;
+
+    const target_url = elements.editTargetUrl.value.trim();
+    const slug = elements.editSlug.value.trim();
+    const title = elements.editTitle.value.trim();
+    const expires_at = elements.editExpiresAt.value ? new Date(elements.editExpiresAt.value).toISOString() : null;
+    const max_clicks = elements.editMaxClicks.value ? parseInt(elements.editMaxClicks.value, 10) : null;
+    const password = elements.editPassword.value.trim();
+    const remove_password = elements.editRemovePassword.checked;
+
+    try {
+        const res = await fetch(`/api/links/${id}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                target_url,
+                slug,
+                title,
+                expires_at,
+                max_clicks,
+                password: password || undefined,
+                remove_password
+            })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+            showToast('Link updated successfully!');
+            closeModal(elements.editModal);
+            fetchLinks();
+        } else {
+            showToast(data.error || 'Failed to update link', 'error');
+        }
+    } catch (err) {
+        showToast('Network error updating link', 'error');
+    }
+}
+
+// -------------------------------------------------------------
+// QR Code Modal & Rendering
+// -------------------------------------------------------------
+function openQrModal(link) {
+    state.activeQrLink = link;
+    const shortUrl = `${window.location.origin}/${link.slug}`;
+    elements.qrLinkText.textContent = shortUrl;
+    renderQrCode(link);
+    openModal(elements.qrModal);
+}
+
+function renderQrCode(link) {
+    if (!window.OmniQR) return;
+    const shortUrl = `${window.location.origin}/${link.slug}`;
+    OmniQR.renderCanvas(shortUrl, elements.qrCanvas, state.qrColor, '#ffffff', 2);
+}
+
+function downloadQrPng() {
+    if (!state.activeQrLink) return;
+    const link = document.createElement('a');
+    link.download = `omnilink-${state.activeQrLink.slug}-qr.png`;
+    link.href = elements.qrCanvas.toDataURL('image/png');
+    link.click();
+    showToast('QR Code PNG downloaded!');
+}
+
+function downloadQrSvg() {
+    if (!state.activeQrLink || !window.OmniQR) return;
+    const shortUrl = `${window.location.origin}/${state.activeQrLink.slug}`;
+    const svgString = OmniQR.generateSVG(shortUrl, state.qrColor, '#ffffff', 2);
+    const blob = new Blob([svgString], { type: 'image/svg+xml' });
+    const link = document.createElement('a');
+    link.download = `omnilink-${state.activeQrLink.slug}-qr.svg`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    showToast('QR Code SVG downloaded!');
+}
+
+// -------------------------------------------------------------
+// Analytics Slide-over Drawer
+// -------------------------------------------------------------
+async function openAnalyticsDrawer(linkId) {
+    elements.analyticsDrawer.classList.add('open');
+    elements.drawerLinkTitle.textContent = 'Loading Insights...';
+    elements.drawerTotalClicks.textContent = '...';
+    elements.drawerUniqueClicks.textContent = '...';
+    elements.timelineChartContainer.innerHTML = '<div style="margin: auto; color: var(--text-muted);">Loading chart...</div>';
+
+    try {
+        const res = await fetch(`/api/analytics/${linkId}`, {
+            headers: getAuthHeaders()
+        });
+
+        if (res.status === 401) {
+            closeAnalyticsDrawer();
+            promptAuth('Admin Access Required', 'Enter passcode to view analytics.');
+            return;
+        }
+
+        const data = await res.json();
+        if (!res.ok) {
+            showToast(data.error || 'Failed to load analytics', 'error');
+            return;
+        }
+
+        const link = data.link;
+        if (link) {
+            elements.drawerLinkTitle.textContent = link.title || link.slug;
+            const shortUrl = `${window.location.origin}/${link.slug}`;
+            elements.drawerShortUrl.textContent = shortUrl;
+            elements.drawerShortUrl.href = shortUrl;
+        }
+
+        elements.drawerTotalClicks.textContent = data.total_clicks.toLocaleString();
+        elements.drawerUniqueClicks.textContent = data.unique_visitors.toLocaleString();
+
+        renderTimelineChart(data.timeline);
+        renderBreakdownList(elements.countriesList, data.countries, data.total_clicks, 'flag');
+        renderBreakdownList(elements.referrersList, data.referrers, data.total_clicks, 'link');
+        renderBreakdownList(elements.devicesList, data.devices, data.total_clicks, 'device');
+        renderRecentClicks(data.recent);
+
+    } catch (e) {
+        console.error('Error fetching analytics:', e);
+        showToast('Failed to load analytics', 'error');
+    }
+}
+
+function closeAnalyticsDrawer() {
+    elements.analyticsDrawer.classList.remove('open');
+}
+
+function renderTimelineChart(timeline = []) {
+    const container = elements.timelineChartContainer;
+    container.innerHTML = '';
+
+    if (timeline.length === 0) {
+        container.innerHTML = '<div style="margin: auto; color: var(--text-muted); font-size: 0.85rem;">No click activity recorded yet.</div>';
+        return;
+    }
+
+    const maxClicks = Math.max(...timeline.map(t => t.clicks), 1);
+
+    timeline.forEach(item => {
+        const barWrap = document.createElement('div');
+        barWrap.style.cssText = 'flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; gap: 6px;';
+
+        const heightPercent = Math.max(Math.round((item.clicks / maxClicks) * 100), 8);
+        const bar = document.createElement('div');
+        bar.style.cssText = `
+            width: 100%;
+            height: ${heightPercent}%;
+            background: var(--accent);
+            border-radius: 4px 4px 0 0;
+            transition: height 0.4s ease;
+            position: relative;
+            cursor: pointer;
+        `;
+        bar.title = `${item.date}: ${item.clicks} clicks`;
+
+        const label = document.createElement('span');
+        label.style.cssText = 'font-size: 0.68rem; color: var(--text-muted); font-family: monospace;';
+        label.textContent = item.date.slice(5); // MM-DD
+
+        barWrap.appendChild(bar);
+        barWrap.appendChild(label);
+        container.appendChild(barWrap);
+    });
+}
+
+function renderBreakdownList(container, items = [], totalClicks = 1, type = 'flag') {
+    container.innerHTML = '';
+    if (!items || items.length === 0) {
+        container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 6px 0;">No data yet.</div>';
+        return;
+    }
+
+    const divisor = Math.max(totalClicks, 1);
+
+    items.forEach(item => {
+        const name = item.country || item.referrer || item.device_type || 'Direct / Unknown';
+        const count = item.count || 0;
+        const percent = Math.round((count / divisor) * 100);
+
+        const row = document.createElement('div');
+        row.className = 'breakdown-row';
+        row.innerHTML = `
+            <span style="font-weight: 500; min-width: 110px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                ${escapeHtml(name)}
+            </span>
+            <div class="breakdown-bar-bg">
+                <div class="breakdown-bar-fill" style="width: ${percent}%;"></div>
+            </div>
+            <span style="color: var(--text-muted); font-size: 0.8rem; font-family: monospace; min-width: 60px; text-align: right;">
+                ${count} (${percent}%)
+            </span>
+        `;
+        container.appendChild(row);
+    });
+}
+
+function renderRecentClicks(recent = []) {
+    const container = elements.recentClicksList;
+    container.innerHTML = '';
+
+    if (!recent || recent.length === 0) {
+        container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; padding: 6px 0;">No clicks recorded yet.</div>';
+        return;
+    }
+
+    const list = document.createElement('div');
+    list.style.cssText = 'display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem;';
+
+    recent.forEach(r => {
+        const item = document.createElement('div');
+        item.style.cssText = 'display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted);';
+        item.innerHTML = `
+            <span>${r.country} • ${r.browser} • ${r.os}</span>
+            <span style="font-family: monospace;">${formatRelativeTime(r.timestamp)}</span>
+        `;
+        list.appendChild(item);
+    });
+
+    container.appendChild(list);
+}
+
+// -------------------------------------------------------------
+// Admin Auth Modal Handling
+// -------------------------------------------------------------
+function openAuthModal() {
+    if (!state.isAuthConfigured) {
+        elements.authModalTitle.textContent = 'Setup Master Admin Passcode';
+        elements.authModalDesc.textContent = 'Protect your OmniLink dashboard with an admin passcode. Only you will be able to create, edit, or view analytics.';
+        elements.adminPassLabel.textContent = 'Set New Admin Passcode (min 4 chars)';
+    } else {
+        elements.authModalTitle.textContent = 'Admin Authentication';
+        elements.authModalDesc.textContent = 'Enter your admin passcode to unlock the dashboard and manage links.';
+        elements.adminPassLabel.textContent = 'Admin Passcode';
+    }
+    elements.adminPassInput.value = '';
+    elements.authStatusMsg.style.display = 'none';
+    openModal(elements.authModal);
+}
+
+function promptAuth(title, desc) {
+    elements.authModalTitle.textContent = title;
+    elements.authModalDesc.textContent = desc;
+    elements.adminPassInput.value = '';
+    elements.authStatusMsg.style.display = 'none';
+    openModal(elements.authModal);
+}
+
+async function handleAuthSubmit(e) {
+    e.preventDefault();
+    const pass = elements.adminPassInput.value.trim();
+    if (!pass) return;
+
+    const action = !state.isAuthConfigured ? 'setup' : 'verify';
+    const body = action === 'setup' ? { action, newPassword: pass } : { action, password: pass };
+
+    try {
+        const res = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+            state.adminToken = pass;
+            localStorage.setItem('omnilink_token', pass);
+            state.isAuthConfigured = true;
+            elements.authSettingsBtn.classList.remove('active');
+            closeModal(elements.authModal);
+            showToast(action === 'setup' ? 'Admin passcode configured!' : 'Admin unlocked successfully!');
+            fetchLinks();
+        } else {
+            elements.authStatusMsg.textContent = data.error || 'Invalid passcode';
+            elements.authStatusMsg.style.color = 'var(--danger)';
+            elements.authStatusMsg.style.display = 'block';
+        }
+    } catch (err) {
+        elements.authStatusMsg.textContent = 'Failed to connect to authentication server';
+        elements.authStatusMsg.style.color = 'var(--danger)';
+        elements.authStatusMsg.style.display = 'block';
+    }
+}
+
+// -------------------------------------------------------------
+// CSV Export
+// -------------------------------------------------------------
+function handleExportCsv() {
+    const url = `/api/export`;
+    // If auth header is required, fetch with blob download
+    fetch(url, { headers: getAuthHeaders() })
+        .then(res => {
+            if (res.status === 401) {
+                promptAuth('Admin Access Required', 'Enter passcode to export CSV.');
+                return null;
+            }
+            return res.blob();
+        })
+        .then(blob => {
+            if (!blob) return;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `omnilink-export-${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            showToast('CSV export downloaded!');
+        })
+        .catch(() => showToast('Failed to export CSV', 'error'));
+}
+
+// -------------------------------------------------------------
+// Utilities
+// -------------------------------------------------------------
+function openModal(modal) {
+    modal.classList.add('open');
+}
+
+function closeModal(modal) {
+    modal.classList.remove('open');
+}
+
+function copyToClipboard(text, customMsg = 'Copied to clipboard!') {
+    navigator.clipboard.writeText(text).then(() => {
+        showToast(customMsg);
+    }).catch(() => {
+        const temp = document.createElement('input');
+        temp.value = text;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand('copy');
+        document.body.removeChild(temp);
+        showToast(customMsg);
+    });
+}
+
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    const icon = type === 'success'
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+        : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+
+    toast.innerHTML = `${icon}<span>${escapeHtml(message)}</span>`;
+    elements.toastContainer.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(12px)';
+        toast.style.transition = 'all 0.25s ease';
+        setTimeout(() => toast.remove(), 250);
+    }, 2800);
+}
+
+function escapeHtml(str = '') {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function getProtocolLetter(url = '') {
+    const lower = url.toLowerCase();
+    if (lower.startsWith('magnet:')) return '🧲';
+    if (lower.startsWith('mailto:')) return '✉️';
+    if (lower.startsWith('tel:')) return '📞';
+    if (lower.startsWith('whatsapp:') || lower.includes('wa.me')) return '💬';
+    if (lower.startsWith('tg:') || lower.includes('t.me')) return '✈️';
+    return '🔗';
+}
+
+function formatRelativeTime(dateString) {
+    if (!dateString) return '';
+    const now = Date.now();
+    const then = new Date(dateString).getTime();
+    const diffSec = Math.floor((now - then) / 1000);
+
+    if (diffSec < 60) return 'just now';
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+    return `${Math.floor(diffSec / 86400)}d ago`;
+}

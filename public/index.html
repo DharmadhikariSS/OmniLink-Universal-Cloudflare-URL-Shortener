@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniLink - All-Rounder URL Shortener</title>
+    <meta name="description" content="Completely free, high-performance edge URL shortener with zero limitations. Supports any protocol, analytics, custom slugs, and QR codes.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <a href="/" class="brand" id="brandLogo">
+                <div class="brand-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                    </svg>
+                </div>
+                <span>OmniLink</span>
+            </a>
+
+            <div class="nav-actions">
+                <div class="pill-stat" id="statPill">
+                    <span>Links: <strong id="headerLinksCount">0</strong></span>
+                    <span style="opacity: 0.3;">•</span>
+                    <span>Clicks: <strong id="headerClicksCount">0</strong></span>
+                </div>
+
+                <button class="icon-btn" id="themeToggleBtn" title="Toggle Light/Dark Theme" aria-label="Toggle Theme">
+                    <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+
+                <button class="icon-btn" id="deployGuideBtn" title="Cloudflare Free Hosting Setup" aria-label="Deployment Guide">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
+                    </svg>
+                </button>
+
+                <button class="icon-btn" id="authSettingsBtn" title="Admin Security Settings" aria-label="Admin Settings">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-container">
+        <!-- Hero Header -->
+        <section class="hero-header">
+            <div class="hero-tag">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                </svg>
+                100% Free • Edge Speed • Zero Limits
+            </div>
+            <h1>All-Rounder URL Shortener</h1>
+            <p>Shorten any web link, magnet URI, deep link, or custom protocol with instant edge redirects, analytics, and custom QR codes.</p>
+        </section>
+
+        <!-- Shortener Box -->
+        <section class="card shortener-box">
+            <!-- Tabs -->
+            <div class="tabs-nav">
+                <button class="tab-btn active" id="tabSingle">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                    </svg>
+                    Single URL
+                </button>
+                <button class="tab-btn" id="tabBulk">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="8" y="2" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Bulk Shorten
+                </button>
+            </div>
+
+            <!-- Single URL Form -->
+            <form id="shortenerForm">
+                <div class="url-input-wrap">
+                    <span class="protocol-badge" id="protocolBadge">LINK</span>
+                    <input type="text" id="mainUrlInput" class="main-url-input" placeholder="Paste any destination URL (https://, magnet:, mailto:, tg://, wa.me, etc.)..." autocomplete="off" required />
+                    <button type="submit" class="btn-shorten" id="shortenSubmitBtn">
+                        <span>Shorten Link</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Feature Option Chips -->
+                <div class="options-bar">
+                    <button type="button" class="option-chip" id="optCustomSlug" data-target="panelSlug">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 20h9"></path>
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                        </svg>
+                        Custom Alias
+                    </button>
+                    <button type="button" class="option-chip" id="optUtm" data-target="panelUtm">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        UTM Builder
+                    </button>
+                    <button type="button" class="option-chip" id="optSecurity" data-target="panelSecurity">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        Passcode Protect
+                    </button>
+                    <button type="button" class="option-chip" id="optExpiry" data-target="panelExpiry">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        Expiration & Limits
+                    </button>
+                </div>
+
+                <!-- Expandable: Custom Slug -->
+                <div class="expandable-panel" id="panelSlug">
+                    <div class="panel-grid">
+                        <div class="field-group">
+                            <label for="customSlugInput">Custom Slug (Short Alias)</label>
+                            <div class="field-input-wrap">
+                                <span class="field-prefix" id="domainPrefix">omnilink/</span>
+                                <input type="text" id="customSlugInput" class="text-input" placeholder="my-custom-link" />
+                            </div>
+                        </div>
+                        <div class="field-group">
+                            <label for="customTitleInput">Optional Title / Label</label>
+                            <div class="field-input-wrap">
+                                <input type="text" id="customTitleInput" class="text-input" placeholder="e.g. My Portfolio or Summer Campaign" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expandable: UTM Builder -->
+                <div class="expandable-panel" id="panelUtm">
+                    <div class="panel-grid">
+                        <div class="field-group">
+                            <label for="utmSource">Campaign Source</label>
+                            <div class="field-input-wrap">
+                                <input type="text" id="utmSource" class="text-input" placeholder="twitter, google, newsletter" />
+                            </div>
+                        </div>
+                        <div class="field-group">
+                            <label for="utmMedium">Campaign Medium</label>
+                            <div class="field-input-wrap">
+                                <input type="text" id="utmMedium" class="text-input" placeholder="social, email, cpc" />
+                            </div>
+                        </div>
+                        <div class="field-group">
+                            <label for="utmCampaign">Campaign Name</label>
+                            <div class="field-input-wrap">
+                                <input type="text" id="utmCampaign" class="text-input" placeholder="launch_v2, promo_summer" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expandable: Security -->
+                <div class="expandable-panel" id="panelSecurity">
+                    <div class="panel-grid">
+                        <div class="field-group">
+                            <label for="linkPasswordInput">Link Passcode / PIN</label>
+                            <div class="field-input-wrap">
+                                <input type="password" id="linkPasswordInput" class="text-input" placeholder="Visitor must enter this PIN to open link" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expandable: Expiration & Limits -->
+                <div class="expandable-panel" id="panelExpiry">
+                    <div class="panel-grid">
+                        <div class="field-group">
+                            <label for="expiresAtInput">Expires At (Date & Time)</label>
+                            <div class="field-input-wrap">
+                                <input type="datetime-local" id="expiresAtInput" class="text-input" />
+                            </div>
+                        </div>
+                        <div class="field-group">
+                            <label for="maxClicksInput">Max Permitted Clicks</label>
+                            <div class="field-input-wrap">
+                                <input type="number" id="maxClicksInput" class="text-input" placeholder="e.g. 50 (Self-destruct after)" min="1" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Bulk URL Form -->
+            <div class="bulk-wrap" id="bulkFormWrap">
+                <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 10px;">
+                    Paste one destination URL per line. Optionally append a custom slug separated by comma (e.g. <code>https://github.com, github</code>).
+                </p>
+                <textarea class="bulk-textarea" id="bulkTextarea" placeholder="https://example.com/page1&#10;https://example.com/page2, my-custom-alias&#10;magnet:?xt=urn:btih:example..."></textarea>
+                <button type="button" class="btn-shorten" id="bulkSubmitBtn">
+                    <span>Shorten Batch</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                </button>
+            </div>
+        </section>
+
+        <!-- Links Management Section -->
+        <section class="mgmt-section">
+            <div class="mgmt-header">
+                <div class="mgmt-title">
+                    <span>Links Directory</span>
+                    <span class="tab-count" id="filteredLinksCount">0</span>
+                </div>
+
+                <div class="mgmt-controls">
+                    <div class="search-wrap">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <input type="text" id="searchInput" class="search-input" placeholder="Search by slug, URL, or title..." />
+                    </div>
+
+                    <select id="sortSelect" class="select-dropdown" aria-label="Sort Links">
+                        <option value="newest">Sort: Newest</option>
+                        <option value="clicks">Sort: Most Clicks</option>
+                        <option value="title">Sort: Title</option>
+                    </select>
+
+                    <button class="btn-secondary" id="exportCsvBtn" title="Export Links to CSV">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status Filter Tabs -->
+            <div class="filter-tabs">
+                <button class="filter-tab active" data-status="all">
+                    All <span class="tab-count" id="countAll">0</span>
+                </button>
+                <button class="filter-tab" data-status="active">
+                    Active <span class="tab-count" id="countActive">0</span>
+                </button>
+                <button class="filter-tab" data-status="paused">
+                    Paused <span class="tab-count" id="countPaused">0</span>
+                </button>
+                <button class="filter-tab" data-status="expired">
+                    Expired <span class="tab-count" id="countExpired">0</span>
+                </button>
+                <button class="filter-tab" data-status="protected">
+                    Passcode <span class="tab-count" id="countProtected">0</span>
+                </button>
+            </div>
+
+            <!-- Links List Container -->
+            <div class="links-list" id="linksListContainer">
+                <!-- Dynamically populated via app.js -->
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state" id="emptyState" style="display: none;">
+                <div class="empty-icon">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="8" y1="12" x2="16" y2="12"></line>
+                    </svg>
+                </div>
+                <h3>No links found</h3>
+                <p>Create your first short link above or adjust your search filter to display links.</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal: QR Code Generator -->
+    <div class="modal-overlay" id="qrModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>QR Code Generator</h3>
+                <button class="icon-btn close-modal-btn" data-close="qrModal">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-body" style="text-align: center;">
+                <div class="qr-preview-box">
+                    <canvas id="qrCanvas" width="220" height="220"></canvas>
+                </div>
+                <div style="font-size: 0.88rem; font-weight: 600; margin-bottom: 12px; color: var(--text);" id="qrLinkText"></div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px;">Pick Accent Color</div>
+                <div class="color-swatches" style="justify-content: center;">
+                    <div class="color-swatch selected" data-color="#000000" style="background: #000000;" title="Classic Black"></div>
+                    <div class="color-swatch" data-color="#10b981" style="background: #10b981;" title="Emerald Green"></div>
+                    <div class="color-swatch" data-color="#6366f1" style="background: #6366f1;" title="Indigo"></div>
+                    <div class="color-swatch" data-color="#ef4444" style="background: #ef4444;" title="Crimson"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="downloadPngBtn">Download PNG</button>
+                <button class="btn-secondary" id="downloadSvgBtn">Download SVG</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Edit Link -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Edit Short Link</h3>
+                <button class="icon-btn close-modal-btn" data-close="editModal">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <form id="editLinkForm">
+                <input type="hidden" id="editLinkId" />
+                <div class="modal-body">
+                    <div class="field-group" style="margin-bottom: 14px;">
+                        <label for="editTargetUrl">Destination URL</label>
+                        <div class="field-input-wrap">
+                            <input type="text" id="editTargetUrl" class="text-input" required />
+                        </div>
+                    </div>
+                    <div class="field-group" style="margin-bottom: 14px;">
+                        <label for="editSlug">Slug Alias</label>
+                        <div class="field-input-wrap">
+                            <input type="text" id="editSlug" class="text-input" required />
+                        </div>
+                    </div>
+                    <div class="field-group" style="margin-bottom: 14px;">
+                        <label for="editTitle">Title / Label</label>
+                        <div class="field-input-wrap">
+                            <input type="text" id="editTitle" class="text-input" />
+                        </div>
+                    </div>
+                    <div class="field-group" style="margin-bottom: 14px;">
+                        <label for="editExpiresAt">Expiration Date (Optional)</label>
+                        <div class="field-input-wrap">
+                            <input type="datetime-local" id="editExpiresAt" class="text-input" />
+                        </div>
+                    </div>
+                    <div class="field-group" style="margin-bottom: 14px;">
+                        <label for="editMaxClicks">Max Click Limit (Optional)</label>
+                        <div class="field-input-wrap">
+                            <input type="number" id="editMaxClicks" class="text-input" min="1" placeholder="Leave empty for unlimited" />
+                        </div>
+                    </div>
+                    <div class="field-group">
+                        <label for="editPassword">Change Passcode (Optional)</label>
+                        <div class="field-input-wrap">
+                            <input type="password" id="editPassword" class="text-input" placeholder="New passcode (leave empty to keep)" />
+                        </div>
+                        <label style="margin-top: 6px; display: flex; align-items: center; gap: 8px; font-size: 0.8rem; cursor: pointer;">
+                            <input type="checkbox" id="editRemovePassword" /> Remove existing passcode
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary close-modal-btn" data-close="editModal">Cancel</button>
+                    <button type="submit" class="btn-shorten" style="padding: 8px 16px;">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Admin Auth & Settings -->
+    <div class="modal-overlay" id="authModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="authModalTitle">Admin Security</h3>
+                <button class="icon-btn close-modal-btn" data-close="authModal">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <form id="authForm">
+                <div class="modal-body">
+                    <p id="authModalDesc" style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 18px;">
+                        Set or enter your master admin passcode to protect link creation, editing, and analytics.
+                    </p>
+                    <div class="field-group" id="authPassField">
+                        <label for="adminPassInput" id="adminPassLabel">Admin Passcode</label>
+                        <div class="field-input-wrap">
+                            <input type="password" id="adminPassInput" class="text-input" placeholder="Enter admin passcode" required />
+                        </div>
+                    </div>
+                    <div id="authStatusMsg" style="margin-top: 12px; font-size: 0.85rem; display: none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary close-modal-btn" data-close="authModal">Close</button>
+                    <button type="submit" class="btn-shorten" id="authSubmitBtn" style="padding: 8px 16px;">Confirm</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Cloudflare Free Deployment Guide -->
+    <div class="modal-overlay" id="deployModal">
+        <div class="modal-card" style="max-width: 580px;">
+            <div class="modal-header">
+                <h3>Deploy Free to Cloudflare Edge</h3>
+                <button class="icon-btn close-modal-btn" data-close="deployModal">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-body" style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.6;">
+                <p style="margin-bottom: 16px;">
+                    You can host this entire application completely free forever on Cloudflare Pages + Cloudflare D1 with global edge latency and 100,000 requests/day.
+                </p>
+                
+                <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px;">
+                    <div style="font-weight: 600; color: var(--text); margin-bottom: 6px;">Step 1: Create your free D1 Database</div>
+                    <code style="font-family: monospace; color: var(--accent); display: block; word-break: break-all;">npx wrangler d1 create omnilink-db</code>
+                </div>
+
+                <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px;">
+                    <div style="font-weight: 600; color: var(--text); margin-bottom: 6px;">Step 2: Initialize Database Tables</div>
+                    <code style="font-family: monospace; color: var(--accent); display: block; word-break: break-all;">npx wrangler d1 execute omnilink-db --file=./schema.sql</code>
+                </div>
+
+                <div style="background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px;">
+                    <div style="font-weight: 600; color: var(--text); margin-bottom: 6px;">Step 3: Deploy to Cloudflare Pages</div>
+                    <code style="font-family: monospace; color: var(--accent); display: block; word-break: break-all;">npm run deploy</code>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary close-modal-btn" data-close="deployModal">Got it</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide-over Analytics Drawer -->
+    <div class="drawer-overlay" id="analyticsDrawer">
+        <div class="drawer-content">
+            <div class="drawer-header">
+                <div>
+                    <div style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; color: var(--accent); margin-bottom: 4px;">Link Insights</div>
+                    <h3 id="drawerLinkTitle" style="font-size: 1.25rem; font-weight: 700;">OmniLink Analytics</h3>
+                    <a id="drawerShortUrl" href="#" target="_blank" class="short-url-link" style="margin-top: 4px;"></a>
+                </div>
+                <button class="icon-btn close-drawer-btn" id="closeDrawerBtn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="drawer-body">
+                <!-- Metrics -->
+                <div class="analytics-metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Total Clicks</div>
+                        <div class="metric-value" id="drawerTotalClicks">0</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Unique Visitors</div>
+                        <div class="metric-value" id="drawerUniqueClicks">0</div>
+                    </div>
+                </div>
+
+                <!-- Timeline Chart -->
+                <div class="chart-card">
+                    <h4>
+                        <span>Clicks Over Time (Past 7 Days)</span>
+                    </h4>
+                    <div id="timelineChartContainer" style="height: 160px; width: 100%; display: flex; align-items: flex-end; gap: 8px;">
+                        <!-- SVG chart will be rendered here -->
+                    </div>
+                </div>
+
+                <!-- Countries Breakdown -->
+                <div class="chart-card">
+                    <h4>Top Locations</h4>
+                    <div id="countriesList">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Referrers Breakdown -->
+                <div class="chart-card">
+                    <h4>Top Referrers</h4>
+                    <div id="referrersList">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Devices & Browsers -->
+                <div class="chart-card">
+                    <h4>Devices & Browsers</h4>
+                    <div id="devicesList">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Recent Activity Feed -->
+                <div class="chart-card">
+                    <h4>Recent Click Activity</h4>
+                    <div id="recentClicksList">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="qr-code.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
