@@ -1,4 +1,4 @@
-name = "omnilink"
+`name = "omnilink"
 compatibility_date = "2024-09-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "public"

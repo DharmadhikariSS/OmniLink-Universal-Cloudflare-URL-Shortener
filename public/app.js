@@ -242,7 +242,7 @@ async function checkAuthStatus() {
             elements.authSettingsBtn.title = 'Set Admin Security (Action Recommended)';
             elements.authSettingsBtn.classList.add('active');
             if (elements.lockGateTitle) elements.lockGateTitle.textContent = 'Setup Master Admin Passcode';
-            if (elements.lockGateDesc) elements.lockGateDesc.textContent = 'OmniLink is unconfigured. Set your Master Admin Passcode below (or configure ADMIN_KEY in Cloudflare Pages).';
+            if (elements.lockGateDesc) elements.lockGateDesc.textContent = 'OmniLink is configured. Enter Master Admin Passcode below.';
             if (elements.lockGateInput) elements.lockGateInput.placeholder = 'Set new admin passcode (min 4 chars)';
         }
     } catch (e) {
