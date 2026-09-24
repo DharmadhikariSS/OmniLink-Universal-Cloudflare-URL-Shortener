@@ -42,6 +42,11 @@ const requiredHtmlIds = [
     'modalCustomColor',
     'modalBgSelector',
     'modalCopyBtn',
+    'studioSaveQrBtn',
+    'qrHistorySection',
+    'qrHistoryList',
+    'qrHistoryCount',
+    'qrHistoryClearBtn',
     'downloadPngBtn',
     'downloadSvgBtn'
 ];
@@ -61,11 +66,11 @@ fn(mockWindow, mockWindow);
 
 assert(mockWindow.OmniQR, 'OmniQR must be defined on window');
 assert(mockWindow.OmniQR.PRESET_LOGOS, 'PRESET_LOGOS must exist');
-assert(mockWindow.OmniQR.PRESET_LOGOS.lightning, 'Lightning preset must exist');
-assert(mockWindow.OmniQR.PRESET_LOGOS.link, 'Link preset must exist');
-assert(mockWindow.OmniQR.PRESET_LOGOS.globe, 'Globe preset must exist');
-assert(mockWindow.OmniQR.PRESET_LOGOS.github, 'GitHub preset must exist');
-assert(mockWindow.OmniQR.PRESET_LOGOS.whatsapp, 'WhatsApp preset must exist');
+assert(mockWindow.OmniQR.PRESET_LOGOS.lightning.startsWith('data:image/svg+xml;base64,'), 'Lightning preset must be base64 data URI');
+assert(mockWindow.OmniQR.PRESET_LOGOS.link.startsWith('data:image/svg+xml;base64,'), 'Link preset must be base64 data URI');
+assert(mockWindow.OmniQR.PRESET_LOGOS.globe.startsWith('data:image/svg+xml;base64,'), 'Globe preset must be base64 data URI');
+assert(mockWindow.OmniQR.PRESET_LOGOS.github.startsWith('data:image/svg+xml;base64,'), 'GitHub preset must be base64 data URI');
+assert(mockWindow.OmniQR.PRESET_LOGOS.whatsapp.startsWith('data:image/svg+xml;base64,'), 'WhatsApp preset must be base64 data URI');
 
 // Test SVG generation with text, header, caption, logo
 const svgDefault = mockWindow.OmniQR.generateSVG('https://example.com');
@@ -105,7 +110,12 @@ assert(appJs.includes('handleLogoUpload'), 'app.js must contain handleLogoUpload
 assert(appJs.includes('selectPresetLogo'), 'app.js must contain selectPresetLogo');
 assert(appJs.includes('downloadStudioPng'), 'app.js must contain downloadStudioPng');
 assert(appJs.includes('downloadStudioSvg'), 'app.js must contain downloadStudioSvg');
-console.log('✔ app.js QR Studio logic & handlers verified');
+assert(appJs.includes('saveCurrentToQrHistory'), 'app.js must contain saveCurrentToQrHistory');
+assert(appJs.includes('renderQrHistoryList'), 'app.js must contain renderQrHistoryList');
+assert(appJs.includes('loadHistoryItemIntoStudio'), 'app.js must contain loadHistoryItemIntoStudio');
+assert(appJs.includes('deleteQrHistoryItem'), 'app.js must contain deleteQrHistoryItem');
+assert(appJs.includes('clearQrHistory'), 'app.js must contain clearQrHistory');
+console.log('✔ app.js QR Studio & QR History logic & handlers verified');
 
 // 4. Test CSS definitions
 const css = fs.readFileSync(path.join(ROOT, 'public', 'style.css'), 'utf-8');
@@ -117,12 +127,15 @@ const requiredCssClasses = [
     '.shape-selector',
     '.color-picker-row',
     '.bg-selector',
-    '.modal-card-lg'
+    '.modal-card-lg',
+    '.qr-history-section',
+    '.qr-history-card',
+    '.qr-history-thumb'
 ];
 
 for (const cls of requiredCssClasses) {
     assert(css.includes(cls), `Missing CSS class: ${cls}`);
 }
-console.log('✔ CSS styles verified for QR Studio and modal upgrades');
+console.log('✔ CSS styles verified for QR Studio, QR History and modal upgrades');
 
-console.log('\n🎉 ALL QR CODE GENERATOR TESTS PASSED! 🎉');
+console.log('\n🎉 ALL QR CODE GENERATOR & QR HISTORY TESTS PASSED! 🎉');

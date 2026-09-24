@@ -448,13 +448,30 @@
         }
     };
 
-    // Preset Brand SVG Icons (as clean Data URIs for canvas & SVG embedding)
+    // Helper for rounded rectangles with fallback for older browsers
+    function drawRoundedRect(ctx, x, y, w, h, r) {
+        if (ctx.roundRect) {
+            ctx.roundRect(x, y, w, h, r);
+            return;
+        }
+        if (w < 2 * r) r = w / 2;
+        if (h < 2 * r) r = h / 2;
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+    }
+
+    // Preset Brand SVG Icons (as clean Base64 Data URIs for universal browser & SVG support)
     var PRESET_LOGOS = {
-        lightning: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="%2310b981"/></svg>',
-        link: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="%2310b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
-        globe: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="%233b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
-        github: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64" fill="%2318181b"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>',
-        whatsapp: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64" fill="%2325D366"><path d="M17.472 14.382c-.301-.15-1.78-.879-2.056-.98-.276-.1-.476-.15-.676.15-.2.301-.776.98-.952 1.18-.175.2-.351.226-.652.076-.301-.15-1.272-.469-2.423-1.497-.895-.798-1.5-1.785-1.675-2.086-.176-.301-.019-.464.132-.614.136-.135.301-.351.452-.526.15-.175.2-.301.3-.502.101-.2.051-.376-.025-.526-.075-.15-.676-1.63-.926-2.233-.243-.587-.49-.507-.676-.516l-.576-.01c-.2 0-.526.075-.802.376s-1.053 1.028-1.053 2.508 1.078 2.909 1.229 3.11c.15.2 2.122 3.24 5.14 4.544.718.31 1.279.496 1.716.635.722.23 1.378.197 1.898.12.579-.087 1.78-.727 2.03-1.43.251-.702.251-1.304.176-1.43-.076-.126-.276-.201-.577-.351zM12.05 2C6.527 2 2.043 6.484 2.043 12.007c0 1.97.574 3.805 1.564 5.358L2 22l4.81-1.572a9.96 9.96 0 0 0 5.24 1.482h.004c5.522 0 10.006-4.484 10.006-10.007C22.06 6.484 17.574 2 12.05 2z"/></svg>'
+        lightning: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij48cG9seWdvbiBwb2ludHM9IjEzIDIgMyAxNCAxMiAxNCAxMSAyMiAyMSAxMCAxMiAxMCAxMyAyIiBmaWxsPSIjMTBiOTgxIi8+PC9zdmc+',
+        link: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSJub25lIiBzdHJva2U9IiMxMGI5ODEiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xMCAxM2E1IDUgMCAwIDAgNy41NC41NGwzLTNhNSA1IDAgMCAwLTcuMDctNy4wN2wtMS43MiAxLjcxIi8+PHBhdGggZD0iTTE0IDExYTUgNSAwIDAgMC03LjU0LS41NGwtMyAzYTUgNSAwIDAgMCA3LjA3IDcuMDdsMS43MS0xLjcxIi8+PC9zdmc+',
+        globe: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzYjgyZjYiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEwIi8+PGxpbmUgeDE9IjIiIHkxPSIxMiIgeDI9IjIyIiB5Mj0iMTIiLz48cGF0aCBkPSJNMTIgMmExNS4zIDE1LjMgMCAwIDEgNCAxMCAxNS4zIDE1LjMgMCAwIDEtNCAxMCAxNS4zIDE1LjMgMCAwIDEgNC0xMHoiLz48L3N2Zz4=',
+        github: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjMTgxODFiIj48cGF0aCBkPSJNMTIgMEM1LjM3IDAgMCA1LjM3IDAgMTJjMCA1LjMxIDMuNDM1IDkuNzk1IDguMjA1IDExLjM4NS42LjEwNS44MjUtLjI1NS44MjUtLjU3IDAtLjI4NS0uMDE1LTEuMjMtLjAxNS0yLjIzNS0zLjAxNS41NTUtMy43OTUtLjczNS00LjAzNS0xLjQxLS4xMzUtLjM0NS0uNzItMS40MS0xLjIzLTEuNjk1LS40Mi0uMjI1LTEuMDItLjc4LS4wMTUtLjc5NS45NDUtLjAxNSAxLjYyLjg3IDEuODQ1IDEuMjMgMS4wOCAxLjgxNSAyLjgwNSAxLjMwNSAzLjQ5NS45OS4xMDUtLjc4LjQyLTEuMzA1Ljc2NS0xLjYwNS0yLjY3LS4zLTUuNDYtMS4zMzUtNS40Ni01LjkyNSAwLTEuMzA1LjQ2NS0yLjM4NSAxLjIzLTMuMjI1LS4xMi0uMy0uNTQtMS41My4xMi0zLjE4IDAgMCAxLjAwNS0uMzE1IDMuMyAxLjIzLjk2LS4yNyAxLjk4LS40MDUgMy0uNDA1czIuMDQuMTM1IDMgLjQwNWMyLjI5NS0xLjU2IDMuMy0xLjIzIDMuMy0xLjIzLjY2IDEuNjUuMjQgMi44OC4xMiAzLjE4Ljc2NS44NCAxLjIzIDEuOTA1IDEuMjMgMy4yMjUgMCA0LjYwNS0yLjgwNSA1LjYyNS01LjQ3NSA1LjkyNS40MzUuMzc1LjgxIDEuMDk1LjgxIDIuMjIgMCAxLjYwNS0uMDE1IDIuODk1LS4wMTUgMy4zIDAgLjMxNS4yMjUuNjkuODI1LjU3QTEyLjAyIDEyLjAyIDAgMCAwIDI0IDEyYzAtNi42My01LjM3LTEyLTEyLTEyeiIvPjwvc3ZnPg==',
+        whatsapp: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjMjVEMzY2Ij48cGF0aCBkPSJNMTcuNDcyIDE0LjM4MmMtLjMwMS0uMTUtMS43OC0uODc5LTIuMDU2LS45OC0uMjc2LS4xLS40NzYtLjE1LS42NzYuMTUtLjIuMzAxLS43NzYuOTgtLjk1MiAxLjE4LS4xNzUuMi0uMzUxLjIyNi0uNjUyLjA3Ni0uMzAxLS4xNS0xLjI3Mi0uNDY5LTIuNDIzLTEuNDk3LS44OTUtLjc5OC0xLjUtMS43ODUtMS42NzUtMi4wODYtLjE3Ni0uMzAxLS4wMTktLjQ2NC4xMzItLjYxNC4xMzYtLjEzNS4zMDEtLjM1MS40NTItLjUyNi4xNS0uMTc1LjItLjMwMS4zLS41MDIuMTAxLS4yLjA1MS0uMzc2LS4wMjUtLjUyNi0uMDc1LS4xNS0uNjc2LTEuNjMtLjkyNi0yLjIzMy0uMjQzLS41ODctLjQ5LS41MDctLjY3Ni0uNTE2bC0uNTc2LS4wMWMtLjIgMC0uNTI2LjA3NS0uODAyLjM3NnMtMS4wNTMgMS4wMjgtMS4wNTMgMi41MDggMS4wNzggMi45MDkgMS4yMjkgMy4xMWMuMTUuMiAyLjEyMiAzLjI0IDUuMTQgNC41NDQuNzE4LjMxIDEuMjc5LjQ5NiAxLjcxNi42MzUuNzIyLjIzIDEuMzc4LjE5NyAxLjg5OC4xMi41NzktLjA4NyAxLjc4LS43MjcgMi4wMy0xLjQzLjI1MS0uNzAyLjI1MS0xLjMwNC4xNzYtMS40My0uMDc2LS4xMjYtLjI3Ni0uMjAxLS41NzctLjM1MXpNMTIuMDUgMkM2LjUyNyAyIDIuMDQzIDYuNDg0IDIuMDQzIDEyLjAwN2MwIDEuOTcuNTc0IDMuODA1IDEuNTY0IDUuMzU4TDIgMjJsNC44MS0xLjU3MmE5Ljk2IDkuOTYgMCAwIDAgNS4yNCAxLjQ4MmguMDA0YzUuNTIyIDAgMTAuMDA2LTQuNDg0IDEwLjAwNi0xMC4wMDdDMjIuMDYgNi40ODQgMTcuNTc0IDIgMTIuMDUgMnoiLz48L3N2Zz4='
     };
 
     var PRESET_IMAGES = {};
@@ -579,11 +596,7 @@
                         } else if (dotShape === 'rounded') {
                             var radius = cellSize * 0.35;
                             ctx.beginPath();
-                            if (ctx.roundRect) {
-                                ctx.roundRect(x, y, cellSize + 0.3, cellSize + 0.3, radius);
-                            } else {
-                                ctx.rect(x, y, cellSize + 0.3, cellSize + 0.3);
-                            }
+                            drawRoundedRect(ctx, x, y, cellSize + 0.3, cellSize + 0.3, radius);
                             ctx.fill();
                         }
                     }
@@ -600,15 +613,11 @@
                 var badgeY = centerY - badgeSize / 2;
 
                 // Protective Badge Background (circle/rounded)
-                var badgeBg = (bgColor === 'transparent' || bgColor === '#09090b') ? '#ffffff' : '#ffffff';
+                var badgeBg = '#ffffff';
                 ctx.fillStyle = badgeBg;
                 ctx.beginPath();
                 var badgeRadius = badgeSize * 0.24;
-                if (ctx.roundRect) {
-                    ctx.roundRect(badgeX, badgeY, badgeSize, badgeSize, badgeRadius);
-                } else {
-                    ctx.rect(badgeX, badgeY, badgeSize, badgeSize);
-                }
+                drawRoundedRect(ctx, badgeX, badgeY, badgeSize, badgeSize, badgeRadius);
                 ctx.fill();
 
                 // Subtle shadow/border around badge
@@ -619,11 +628,21 @@
                 // Draw Logo Image
                 var logoPad = badgeSize * 0.16;
                 var drawLogo = function(img) {
-                    ctx.drawImage(img, badgeX + logoPad, badgeY + logoPad, badgeSize - 2 * logoPad, badgeSize - 2 * logoPad);
+                    try {
+                        ctx.drawImage(img, badgeX + logoPad, badgeY + logoPad, badgeSize - 2 * logoPad, badgeSize - 2 * logoPad);
+                    } catch (e) {
+                        console.warn('Failed to draw logo on canvas:', e);
+                    }
                 };
 
-                if (logo instanceof HTMLImageElement && logo.complete && logo.naturalWidth > 0) {
-                    drawLogo(logo);
+                if (logo instanceof HTMLImageElement) {
+                    if (logo.complete && logo.naturalWidth > 0) {
+                        drawLogo(logo);
+                    } else {
+                        logo.onload = function() {
+                            drawLogo(logo);
+                        };
+                    }
                 } else if (typeof logo === 'string') {
                     var img = new Image();
                     img.crossOrigin = 'anonymous';

@@ -22,7 +22,7 @@ const state = {
 
 // QR Generator State
 const qrStudio = {
-    text: 'https://',
+    text: '',
     headerText: '',
     captionText: '',
     color: '#000000',
@@ -105,6 +105,13 @@ const elements = {
     studioCopyBtn: document.getElementById('studioCopyBtn'),
     studioDownloadPngBtn: document.getElementById('studioDownloadPngBtn'),
     studioDownloadSvgBtn: document.getElementById('studioDownloadSvgBtn'),
+    studioSaveQrBtn: document.getElementById('studioSaveQrBtn'),
+
+    // QR History Elements
+    qrHistorySection: document.getElementById('qrHistorySection'),
+    qrHistoryList: document.getElementById('qrHistoryList'),
+    qrHistoryCount: document.getElementById('qrHistoryCount'),
+    qrHistoryClearBtn: document.getElementById('qrHistoryClearBtn'),
 
     // QR Modal Elements
     qrModal: document.getElementById('qrModal'),
@@ -178,7 +185,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initPrefix();
     setupEventListeners();
     setupQrEventListeners();
+    initStudioDefault();
     renderStudioQr();
+    renderQrHistoryList();
     checkAuthStatus();
     if (!state.adminToken) {
         setLockedState(true);
@@ -343,8 +352,17 @@ function setupEventListeners() {
         elements.lockGateForm.addEventListener('submit', handleLockGateSubmit);
     }
 
-    // Protocol recognition
-    elements.mainUrlInput.addEventListener('input', updateProtocolBadge);
+    // Protocol recognition & auto-sync to QR Studio if default
+    elements.mainUrlInput.addEventListener('input', () => {
+        updateProtocolBadge();
+        const mainVal = elements.mainUrlInput.value.trim();
+        const fallback = window.location.origin || 'https://omnilink.app';
+        if (mainVal && (!qrStudio.text || qrStudio.text === fallback || qrStudio.text === 'https://')) {
+            qrStudio.text = mainVal;
+            if (elements.studioTextInput) elements.studioTextInput.value = mainVal;
+            renderStudioQr();
+        }
+    });
 
     // Tabs
     elements.tabSingle.addEventListener('click', () => switchTab('single'));
@@ -484,7 +502,16 @@ function switchTab(mode) {
     if (elements.qrStudioWrap) {
         elements.qrStudioWrap.style.display = mode === 'studio' ? 'block' : 'none';
         if (mode === 'studio') {
+            const mainVal = elements.mainUrlInput ? elements.mainUrlInput.value.trim() : '';
+            const fallback = window.location.origin || 'https://omnilink.app';
+            if (mainVal && (!qrStudio.text || qrStudio.text === fallback || qrStudio.text === 'https://')) {
+                qrStudio.text = mainVal;
+                if (elements.studioTextInput) elements.studioTextInput.value = mainVal;
+            } else if (elements.studioTextInput && elements.studioTextInput.value.trim()) {
+                qrStudio.text = cleanEncodedText(elements.studioTextInput.value);
+            }
             renderStudioQr();
+            renderQrHistoryList();
         }
     }
 }
@@ -782,6 +809,11 @@ async function handleSingleShorten(e) {
         const shortUrl = `${window.location.origin}/${data.link.slug}`;
         copyToClipboard(shortUrl, 'Short link copied to clipboard!');
 
+        // Update QR Studio with newly created short link
+        qrStudio.text = shortUrl;
+        if (elements.studioTextInput) elements.studioTextInput.value = shortUrl;
+        renderStudioQr();
+
         // Reset form inputs
         elements.mainUrlInput.value = '';
         elements.customSlugInput.value = '';
@@ -964,12 +996,48 @@ async function handleEditSubmit(e) {
 // -------------------------------------------------------------
 // QR Studio & Modal Engine
 // -------------------------------------------------------------
-function setupQrEventListeners() {
-    // Studio Text inputs
+function cleanEncodedText(raw) {
+    if (!raw) return '';
+    let text = raw.trim();
+    if (text.startsWith('https://https://')) {
+        text = text.substring(8);
+    } else if (text.startsWith('http://http://')) {
+        text = text.substring(7);
+    } else if (text.startsWith('https://http://')) {
+        text = text.substring(8);
+    }
+    return text;
+}
+
+function initStudioDefault() {
     if (elements.studioTextInput) {
-        elements.studioTextInput.addEventListener('input', (e) => {
-            qrStudio.text = e.target.value;
+        const fallback = window.location.origin || 'https://omnilink.app';
+        if (!elements.studioTextInput.value.trim()) {
+            qrStudio.text = fallback;
+        } else {
+            qrStudio.text = cleanEncodedText(elements.studioTextInput.value);
+        }
+    }
+}
+
+function setupQrEventListeners() {
+    // Studio Text inputs with real-time sync across input, paste, keyup, change
+    if (elements.studioTextInput) {
+        const updateStudioText = () => {
+            const raw = elements.studioTextInput.value;
+            const cleaned = cleanEncodedText(raw);
+            if (cleaned !== raw && (raw.startsWith('https://https://') || raw.startsWith('http://http://'))) {
+                elements.studioTextInput.value = cleaned;
+            }
+            qrStudio.text = cleaned || (window.location.origin || 'https://omnilink.app');
             renderStudioQr();
+        };
+
+        elements.studioTextInput.addEventListener('input', updateStudioText);
+        elements.studioTextInput.addEventListener('change', updateStudioText);
+        elements.studioTextInput.addEventListener('keyup', updateStudioText);
+        elements.studioTextInput.addEventListener('paste', () => {
+            setTimeout(updateStudioText, 10);
         });
     }
     if (elements.studioHeaderInput) {
@@ -1043,14 +1111,42 @@ function setupQrEventListeners() {
     // Studio Actions
     if (elements.studioCopyBtn) {
         elements.studioCopyBtn.addEventListener('click', () => {
-            copyCanvasToClipboard(elements.studioQrCanvas);
+            if (!window.OmniQR) return;
+            const text = (qrStudio.text || '').trim() || (window.location.origin || 'https://omnilink.app');
+            const logoSrc = qrStudio.customLogoDataUrl || qrStudio.customLogoImg || (qrStudio.presetLogo !== 'none' ? qrStudio.presetLogo : null);
+            const exportCanvas = OmniQR.renderToExportCanvas({
+                text: text,
+                color: qrStudio.color,
+                bgColor: qrStudio.bgColor,
+                dotShape: qrStudio.dotShape,
+                headerText: qrStudio.headerText,
+                captionText: qrStudio.captionText,
+                logoImg: logoSrc,
+                margin: 2
+            }, 1024);
+            copyCanvasToClipboard(exportCanvas);
+            saveCurrentToQrHistory(true);
         });
     }
     if (elements.studioDownloadPngBtn) {
-        elements.studioDownloadPngBtn.addEventListener('click', downloadStudioPng);
+        elements.studioDownloadPngBtn.addEventListener('click', () => {
+            downloadStudioPng();
+            saveCurrentToQrHistory(true);
+        });
     }
     if (elements.studioDownloadSvgBtn) {
-        elements.studioDownloadSvgBtn.addEventListener('click', downloadStudioSvg);
+        elements.studioDownloadSvgBtn.addEventListener('click', () => {
+            downloadStudioSvg();
+            saveCurrentToQrHistory(true);
+        });
+    }
+    if (elements.studioSaveQrBtn) {
+        elements.studioSaveQrBtn.addEventListener('click', () => {
+            saveCurrentToQrHistory(false);
+        });
+    }
+    if (elements.qrHistoryClearBtn) {
+        elements.qrHistoryClearBtn.addEventListener('click', clearQrHistory);
     }
 
     // Modal Text inputs
@@ -1305,7 +1401,7 @@ function selectBg(bg, isStudio = true) {
 
 function renderStudioQr() {
     if (!window.OmniQR || !elements.studioQrCanvas) return;
-    const text = qrStudio.text || 'https://';
+    const text = (qrStudio.text || '').trim() || (window.location.origin || 'https://omnilink.app');
     const logoImg = qrStudio.customLogoImg || (qrStudio.presetLogo !== 'none' ? qrStudio.presetLogo : null);
 
     OmniQR.renderCanvas({
@@ -1406,8 +1502,8 @@ function downloadOptsAsSvg(opts, filename) {
 }
 
 function downloadStudioPng() {
-    const text = qrStudio.text || 'https://';
-    const logoImg = qrStudio.customLogoImg || (qrStudio.presetLogo !== 'none' ? qrStudio.presetLogo : null);
+    const text = (qrStudio.text || '').trim() || (window.location.origin || 'https://omnilink.app');
+    const logoImg = qrStudio.customLogoDataUrl || qrStudio.customLogoImg || (qrStudio.presetLogo !== 'none' ? qrStudio.presetLogo : null);
     downloadCanvasAsPng({
         text: text,
         color: qrStudio.color,
@@ -1421,8 +1517,8 @@ function downloadStudioPng() {
 }
 
 function downloadStudioSvg() {
-    const text = qrStudio.text || 'https://';
-    const logoImg = qrStudio.customLogoImg || (qrStudio.presetLogo !== 'none' ? qrStudio.presetLogo : null);
+    const text = (qrStudio.text || '').trim() || (window.location.origin || 'https://omnilink.app');
+    const logoImg = qrStudio.customLogoDataUrl || (qrStudio.presetLogo !== 'none' ? qrStudio.presetLogo : null);
     downloadOptsAsSvg({
         text: text,
         color: qrStudio.color,
@@ -1470,6 +1566,330 @@ function downloadModalSvg() {
 // Deprecated aliases for backwards compatibility
 function downloadQrPng() { downloadModalPng(); }
 function downloadQrSvg() { downloadModalSvg(); }
+
+// -------------------------------------------------------------
+// QR Code History Management
+// -------------------------------------------------------------
+const QR_HISTORY_KEY = 'omnilink_qr_history';
+
+function getQrHistory() {
+    try {
+        const raw = localStorage.getItem(QR_HISTORY_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        console.error('Failed to parse QR history:', e);
+        return [];
+    }
+}
+
+function setQrHistory(list) {
+    try {
+        localStorage.setItem(QR_HISTORY_KEY, JSON.stringify(list));
+    } catch (e) {
+        console.error('Failed to save QR history:', e);
+    }
+}
+
+function saveCurrentToQrHistory(silent = false) {
+    const text = (qrStudio.text || '').trim();
+    if (!text) {
+        if (!silent) showToast('Please enter a URL or text to encode first', 'error');
+        return null;
+    }
+
+    const history = getQrHistory();
+    // Prevent duplicate saves if identical to most recent entry
+    const mostRecent = history[0];
+    if (mostRecent &&
+        mostRecent.text === text &&
+        mostRecent.color === qrStudio.color &&
+        mostRecent.bgColor === qrStudio.bgColor &&
+        mostRecent.dotShape === qrStudio.dotShape &&
+        mostRecent.presetLogo === qrStudio.presetLogo &&
+        mostRecent.headerText === (qrStudio.headerText || '') &&
+        mostRecent.captionText === (qrStudio.captionText || '') &&
+        mostRecent.customLogoDataUrl === qrStudio.customLogoDataUrl
+    ) {
+        if (!silent) showToast('QR Code is already saved in history');
+        return mostRecent;
+    }
+
+    // Infer a readable title
+    let title = qrStudio.headerText || '';
+    if (!title) {
+        try {
+            if (text.includes('://')) {
+                const u = new URL(text);
+                title = u.hostname + (u.pathname !== '/' ? u.pathname : '');
+            } else {
+                title = text.length > 30 ? text.substring(0, 27) + '...' : text;
+            }
+        } catch (e) {
+            title = text.length > 30 ? text.substring(0, 27) + '...' : text;
+        }
+    }
+
+    const newItem = {
+        id: 'qr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+        text: text,
+        title: title,
+        headerText: qrStudio.headerText || '',
+        captionText: qrStudio.captionText || '',
+        color: qrStudio.color || '#000000',
+        bgColor: qrStudio.bgColor || '#ffffff',
+        dotShape: qrStudio.dotShape || 'square',
+        presetLogo: qrStudio.presetLogo || 'none',
+        customLogoDataUrl: qrStudio.customLogoDataUrl || null,
+        createdAt: new Date().toISOString()
+    };
+
+    history.unshift(newItem);
+    if (history.length > 50) history.length = 50;
+    setQrHistory(history);
+
+    renderQrHistoryList();
+    if (!silent) showToast('QR Code saved to history!');
+    return newItem;
+}
+
+function deleteQrHistoryItem(id) {
+    let history = getQrHistory();
+    history = history.filter(item => item.id !== id);
+    setQrHistory(history);
+    renderQrHistoryList();
+    showToast('Removed from QR history');
+}
+
+function clearQrHistory() {
+    if (!confirm('Are you sure you want to clear your QR Code History?')) return;
+    localStorage.removeItem(QR_HISTORY_KEY);
+    renderQrHistoryList();
+    showToast('QR Code history cleared');
+}
+
+function loadHistoryItemIntoStudio(item) {
+    if (!item) return;
+
+    qrStudio.text = item.text || '';
+    qrStudio.headerText = item.headerText || '';
+    qrStudio.captionText = item.captionText || '';
+    qrStudio.color = item.color || '#000000';
+    qrStudio.bgColor = item.bgColor || '#ffffff';
+    qrStudio.dotShape = item.dotShape || 'square';
+    qrStudio.presetLogo = item.presetLogo || 'none';
+    qrStudio.customLogoDataUrl = item.customLogoDataUrl || null;
+
+    if (elements.studioTextInput) elements.studioTextInput.value = qrStudio.text;
+    if (elements.studioHeaderInput) elements.studioHeaderInput.value = qrStudio.headerText;
+    if (elements.studioCaptionInput) elements.studioCaptionInput.value = qrStudio.captionText;
+
+    // Dot Shape UI
+    selectDotShape(qrStudio.dotShape, true);
+
+    // Color UI
+    selectColor(qrStudio.color, true);
+
+    // Bg UI
+    selectBg(qrStudio.bgColor, true);
+
+    // Logo UI
+    if (item.customLogoDataUrl) {
+        const img = new Image();
+        img.onload = () => {
+            qrStudio.customLogoImg = img;
+            renderStudioQr();
+        };
+        img.src = item.customLogoDataUrl;
+        if (elements.studioLogoPreviewBadge) {
+            elements.studioLogoPreviewBadge.style.display = 'inline-flex';
+            elements.studioLogoThumb.src = item.customLogoDataUrl;
+            elements.studioLogoFileName.textContent = 'Saved Custom Logo';
+        }
+    } else {
+        removeCustomLogo(true);
+        if (item.presetLogo && item.presetLogo !== 'none') {
+            selectPresetLogo(item.presetLogo, true);
+        }
+    }
+
+    renderStudioQr();
+    if (elements.studioCanvasWrap) {
+        elements.studioCanvasWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    showToast('QR loaded into Studio!');
+}
+
+function renderQrHistoryList() {
+    const listEl = elements.qrHistoryList;
+    if (!listEl) return;
+
+    const history = getQrHistory();
+    const countEl = elements.qrHistoryCount;
+    const clearBtn = elements.qrHistoryClearBtn;
+
+    if (countEl) countEl.textContent = history.length;
+    if (clearBtn) clearBtn.style.display = history.length > 0 ? 'inline-flex' : 'none';
+
+    if (history.length === 0) {
+        listEl.innerHTML = `
+            <div class="qr-history-empty">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+                <div class="qr-empty-text">No saved QR codes in history yet.</div>
+                <div class="qr-empty-sub">Customize any QR code in the Studio above and click "Save to History" or download it.</div>
+            </div>
+        `;
+        return;
+    }
+
+    listEl.innerHTML = '';
+
+    history.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'qr-history-card';
+        card.setAttribute('data-id', item.id);
+
+        const safeTitle = escapeHtml(item.title || item.text);
+        const safeText = escapeHtml(item.text);
+        const relTime = formatRelativeTime(item.createdAt);
+
+        let logoBadgeText = '';
+        if (item.customLogoDataUrl) {
+            logoBadgeText = 'Custom Logo';
+        } else if (item.presetLogo && item.presetLogo !== 'none') {
+            logoBadgeText = item.presetLogo.charAt(0).toUpperCase() + item.presetLogo.slice(1);
+        }
+
+        card.innerHTML = `
+            <div class="qr-history-card-left">
+                <div class="qr-history-thumb-wrap">
+                    <canvas class="qr-history-thumb" width="72" height="72"></canvas>
+                </div>
+                <div class="qr-history-details">
+                    <div class="qr-history-title-row">
+                        <span class="qr-history-title" title="${safeTitle}">${safeTitle}</span>
+                        <span class="qr-badge shape">${escapeHtml(item.dotShape || 'square')}</span>
+                        ${logoBadgeText ? `<span class="qr-badge logo">${escapeHtml(logoBadgeText)}</span>` : ''}
+                    </div>
+                    <div class="qr-history-url-row">
+                        <span class="qr-history-url" title="${safeText}">${safeText}</span>
+                    </div>
+                    <div class="qr-history-meta">
+                        <span>${relTime}</span>
+                        <span class="qr-color-dot" style="background: ${escapeHtml(item.color || '#000000')};" title="Foreground: ${escapeHtml(item.color || '#000000')}"></span>
+                        ${item.headerText ? `<span class="qr-text-tag" title="Header">H: ${escapeHtml(item.headerText)}</span>` : ''}
+                        ${item.captionText ? `<span class="qr-text-tag" title="Caption">C: ${escapeHtml(item.captionText)}</span>` : ''}
+                    </div>
+                </div>
+            </div>
+            <div class="qr-history-actions">
+                <button type="button" class="btn-action qr-load-btn" title="Load into QR Studio">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                    </svg>
+                    <span>Load</span>
+                </button>
+                <button type="button" class="btn-action qr-copy-btn" title="Copy Image">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>Copy</span>
+                </button>
+                <button type="button" class="btn-action qr-png-btn" title="Download PNG (1024px)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>PNG</span>
+                </button>
+                <button type="button" class="btn-action qr-svg-btn" title="Download Vector SVG">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                        <polyline points="2 17 12 22 22 17"></polyline>
+                        <polyline points="2 12 12 17 22 12"></polyline>
+                    </svg>
+                    <span>SVG</span>
+                </button>
+                <button type="button" class="btn-action qr-del-btn" title="Delete from History">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
+
+        listEl.appendChild(card);
+
+        // Render thumbnail canvas
+        const thumbCanvas = card.querySelector('.qr-history-thumb');
+        if (thumbCanvas && window.OmniQR) {
+            let logoSrc = item.customLogoDataUrl || (item.presetLogo !== 'none' ? item.presetLogo : null);
+            OmniQR.renderCanvas({
+                text: item.text,
+                canvas: thumbCanvas,
+                color: item.color || '#000000',
+                bgColor: item.bgColor || '#ffffff',
+                dotShape: item.dotShape || 'square',
+                headerText: '',
+                captionText: '',
+                logoImg: logoSrc,
+                margin: 1
+            });
+        }
+
+        // Action Handlers
+        card.querySelector('.qr-load-btn').addEventListener('click', () => loadHistoryItemIntoStudio(item));
+        card.querySelector('.qr-copy-btn').addEventListener('click', () => {
+            if (!window.OmniQR) return;
+            let logoSrc = item.customLogoDataUrl || (item.presetLogo !== 'none' ? item.presetLogo : null);
+            const expCanvas = OmniQR.renderToExportCanvas({
+                text: item.text,
+                color: item.color,
+                bgColor: item.bgColor,
+                dotShape: item.dotShape,
+                headerText: item.headerText,
+                captionText: item.captionText,
+                logoImg: logoSrc,
+                margin: 2
+            }, 1024);
+            copyCanvasToClipboard(expCanvas);
+        });
+        card.querySelector('.qr-png-btn').addEventListener('click', () => {
+            let logoSrc = item.customLogoDataUrl || (item.presetLogo !== 'none' ? item.presetLogo : null);
+            downloadCanvasAsPng({
+                text: item.text,
+                color: item.color,
+                bgColor: item.bgColor,
+                dotShape: item.dotShape,
+                headerText: item.headerText,
+                captionText: item.captionText,
+                logoImg: logoSrc,
+                margin: 2
+            }, `omnilink-qr-${item.id}.png`);
+        });
+        card.querySelector('.qr-svg-btn').addEventListener('click', () => {
+            let logoSrc = item.customLogoDataUrl || (item.presetLogo !== 'none' ? item.presetLogo : null);
+            downloadOptsAsSvg({
+                text: item.text,
+                color: item.color,
+                bgColor: item.bgColor,
+                dotShape: item.dotShape,
+                headerText: item.headerText,
+                captionText: item.captionText,
+                logoImg: logoSrc,
+                margin: 2
+            }, `omnilink-qr-${item.id}.svg`);
+        });
+        card.querySelector('.qr-del-btn').addEventListener('click', () => deleteQrHistoryItem(item.id));
+    });
+}
 
 // -------------------------------------------------------------
 // Analytics Slide-over Drawer
