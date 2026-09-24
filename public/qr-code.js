@@ -574,10 +574,34 @@
                 ctx.fillText(headerText, width / 2, headerHeight * 0.55);
             }
 
-            // Draw QR Matrix
+            // QR matrix layout — must be declared before badge pre-computation
             var qrOffsetY = headerHeight;
             var cellSize = qrAreaSize / (count + 2 * margin);
 
+            // Pre-compute badge bounds if logo is present
+            // Badges must be calculated BEFORE module drawing so we can skip dots inside the zone
+            var badgeX = 0, badgeY = 0, badgeSize = 0, badgeRadius = 0;
+            var logoPad = 0, drawLogoX = 0, drawLogoY2 = 0, drawLogoSize = 0;
+            var hasBadge = Boolean(logo);
+
+            if (hasBadge) {
+                // QR matrix actual pixel area (inside margins)
+                var qrMatrixPx = count * cellSize;
+                var qrMatrixLeft = margin * cellSize;          // x offset within qrAreaSize
+                var qrMatrixTop  = qrOffsetY + margin * cellSize; // y offset in canvas
+
+                // Badge = 15% of matrix width (area coverage ≈ 2.25%) — safely inside 30% EC-H
+                badgeSize   = qrMatrixPx * 0.15;
+                badgeX      = qrMatrixLeft + (qrMatrixPx - badgeSize) / 2;
+                badgeY      = qrMatrixTop  + (qrMatrixPx - badgeSize) / 2;
+                badgeRadius = badgeSize * 0.22;
+                logoPad     = badgeSize * 0.12;
+                drawLogoX   = badgeX + logoPad;
+                drawLogoY2  = badgeY + logoPad;
+                drawLogoSize = badgeSize - 2 * logoPad;
+            }
+
+            // Draw QR Matrix — skipping any module whose center falls inside the badge zone
             ctx.fillStyle = color;
 
             for (var r = 0; r < count; r++) {
@@ -585,6 +609,18 @@
                     if (qr.isDark(r, c)) {
                         var x = (c + margin) * cellSize;
                         var y = qrOffsetY + (r + margin) * cellSize;
+
+                        // Skip dots that fall inside the logo badge zone (leave as background)
+                        // Using cell center for the overlap check
+                        if (hasBadge) {
+                            var cx2 = x + cellSize / 2;
+                            var cy2 = y + cellSize / 2;
+                            if (cx2 >= badgeX && cx2 <= badgeX + badgeSize &&
+                                cy2 >= badgeY && cy2 <= badgeY + badgeSize) {
+                                continue; // skip — EC-H will recover these erasures
+                            }
+                        }
+
                         var isFinder = isFinderPattern(r, c, count);
 
                         if (isFinder || dotShape === 'square') {
@@ -603,43 +639,23 @@
                 }
             }
 
-            // Center Logo Overlay
-            if (logo) {
-                // QR matrix actual area (inside the margin)
-                var qrMatrixSize = count * cellSize;
-                var qrMatrixOffsetX = (width - qrMatrixSize) / 2;
-                var qrMatrixOffsetY = qrOffsetY + (qrAreaSize - qrMatrixSize) / 2;
-
-                // Badge sized at 18% of QR matrix for reliable scannability (EC-H covers 30%)
-                var logoSizeRatio = 0.18;
-                var badgeSize = qrMatrixSize * logoSizeRatio;
-                // Center precisely on the QR matrix (not the whole canvas)
-                var centerX = qrMatrixOffsetX + qrMatrixSize / 2;
-                var centerY = qrMatrixOffsetY + qrMatrixSize / 2;
-                var badgeX = centerX - badgeSize / 2;
-                var badgeY = centerY - badgeSize / 2;
-
-                // Protective Badge Background
+            // Draw Badge + Logo on top (dots underneath are already cleared)
+            if (hasBadge) {
+                // White badge background
                 ctx.fillStyle = '#ffffff';
                 ctx.beginPath();
-                var badgeRadius = badgeSize * 0.22;
                 drawRoundedRect(ctx, badgeX, badgeY, badgeSize, badgeSize, badgeRadius);
                 ctx.fill();
 
                 // Subtle border
-                ctx.strokeStyle = 'rgba(0,0,0,0.10)';
-                ctx.lineWidth = Math.max(Math.round(cellSize * 0.35), 1);
+                ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+                ctx.lineWidth = Math.max(cellSize * 0.3, 0.5);
                 ctx.stroke();
 
-                // Draw Logo Image
-                var logoPad = badgeSize * 0.14;
-                var drawLogoImg = badgeX + logoPad;
-                var drawLogoY = badgeY + logoPad;
-                var drawLogoSize = badgeSize - 2 * logoPad;
-
+                // Draw Logo
                 var drawLogo = function(img) {
                     try {
-                        ctx.drawImage(img, drawLogoImg, drawLogoY, drawLogoSize, drawLogoSize);
+                        ctx.drawImage(img, drawLogoX, drawLogoY2, drawLogoSize, drawLogoSize);
                     } catch (e) {
                         console.warn('Failed to draw logo on canvas:', e);
                     }
@@ -649,17 +665,17 @@
                     if (logo.complete && logo.naturalWidth > 0) {
                         drawLogo(logo);
                     } else {
-                        logo.onload = function() { drawLogo(logo); };
+                        logo.onload  = function() { drawLogo(logo); };
                         logo.onerror = function() { console.warn('Logo image failed to load'); };
                     }
                 } else if (typeof logo === 'string') {
                     var logoImg2 = new Image();
-                    // Only set crossOrigin for http/https URLs, NOT for data URIs
+                    // Only set crossOrigin for actual remote URLs, not data URIs
                     if (logo.startsWith('http://') || logo.startsWith('https://')) {
                         logoImg2.crossOrigin = 'anonymous';
                     }
-                    logoImg2.onload = function() { drawLogo(logoImg2); };
-                    logoImg2.onerror = function() { console.warn('Logo failed to load:', logo.substring(0, 60)); };
+                    logoImg2.onload  = function() { drawLogo(logoImg2); };
+                    logoImg2.onerror = function() { console.warn('Logo failed to load'); };
                     logoImg2.src = logo;
                 }
             }
