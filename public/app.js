@@ -1927,28 +1927,56 @@ function renderQrHistoryList() {
 
         listEl.appendChild(card);
 
-        // Render thumbnail canvas
-        const thumbCanvas = card.querySelector('.qr-history-thumb');
-        if (thumbCanvas && window.OmniQR) {
-            let logoSrc = item.customLogoDataUrl || (item.presetLogo !== 'none' ? item.presetLogo : null);
-            OmniQR.renderCanvas({
-                text: item.text,
-                canvas: thumbCanvas,
-                color: item.color || '#000000',
-                bgColor: item.bgColor || '#ffffff',
-                dotShape: item.dotShape || 'square',
-                headerText: '',
-                captionText: '',
-                logoImg: logoSrc,
-                margin: 1
-            });
+        // Render thumbnail: draw at 256px off-screen then scale into the 72px thumb
+        // This avoids sub-pixel rendering issues with complex/long URLs on tiny canvases
+        if (window.OmniQR) {
+            const thumbCanvas = card.querySelector('.qr-history-thumb');
+            if (thumbCanvas) {
+                const logoKey = (item.presetLogo && item.presetLogo !== 'none') ? item.presetLogo : null;
+                // Resolve preset logo key → base64 data URI string (renderCanvas handles async img load)
+                const logoSrc = item.customLogoDataUrl || (logoKey ? (OmniQR.PRESET_LOGOS[logoKey] || null) : null);
+
+                // Off-screen 256px canvas for sharp rendering
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = 256;
+                offCanvas.height = 256;
+                OmniQR.renderCanvas({
+                    text: item.text,
+                    canvas: offCanvas,
+                    color: item.color || '#000000',
+                    bgColor: item.bgColor || '#ffffff',
+                    dotShape: item.dotShape || 'square',
+                    headerText: '',
+                    captionText: '',
+                    logoImg: logoSrc,
+                    margin: 2
+                });
+
+                // Scale-down into thumb after a short delay (allows async logo onload to complete)
+                const drawThumb = () => {
+                    const tCtx = thumbCanvas.getContext('2d');
+                    tCtx.clearRect(0, 0, 72, 72);
+                    tCtx.drawImage(offCanvas, 0, 0, offCanvas.width, offCanvas.height, 0, 0, 72, 72);
+                };
+                // Draw immediately (QR matrix is sync), then re-draw after logo loads
+                drawThumb();
+                setTimeout(drawThumb, 300);
+            }
         }
+
+        // Resolve logo source for action buttons (use data URI so buttons work independently of PRESET_IMAGES load state)
+        const getLogoSrc = () => {
+            if (item.customLogoDataUrl) return item.customLogoDataUrl;
+            if (item.presetLogo && item.presetLogo !== 'none') {
+                return (window.OmniQR && OmniQR.PRESET_LOGOS[item.presetLogo]) || item.presetLogo;
+            }
+            return null;
+        };
 
         // Action Handlers
         card.querySelector('.qr-load-btn').addEventListener('click', () => loadHistoryItemIntoStudio(item));
         card.querySelector('.qr-copy-btn').addEventListener('click', () => {
             if (!window.OmniQR) return;
-            let logoSrc = item.customLogoDataUrl || (item.presetLogo !== 'none' ? item.presetLogo : null);
             const expCanvas = OmniQR.renderToExportCanvas({
                 text: item.text,
                 color: item.color,
@@ -1956,13 +1984,12 @@ function renderQrHistoryList() {
                 dotShape: item.dotShape,
                 headerText: item.headerText,
                 captionText: item.captionText,
-                logoImg: logoSrc,
+                logoImg: getLogoSrc(),
                 margin: 2
             }, 1024);
             copyCanvasToClipboard(expCanvas);
         });
         card.querySelector('.qr-png-btn').addEventListener('click', () => {
-            let logoSrc = item.customLogoDataUrl || (item.presetLogo !== 'none' ? item.presetLogo : null);
             downloadCanvasAsPng({
                 text: item.text,
                 color: item.color,
@@ -1970,12 +1997,11 @@ function renderQrHistoryList() {
                 dotShape: item.dotShape,
                 headerText: item.headerText,
                 captionText: item.captionText,
-                logoImg: logoSrc,
+                logoImg: getLogoSrc(),
                 margin: 2
             }, `omnilink-qr-${item.id}.png`);
         });
         card.querySelector('.qr-svg-btn').addEventListener('click', () => {
-            let logoSrc = item.customLogoDataUrl || (item.presetLogo !== 'none' ? item.presetLogo : null);
             downloadOptsAsSvg({
                 text: item.text,
                 color: item.color,
@@ -1983,7 +2009,7 @@ function renderQrHistoryList() {
                 dotShape: item.dotShape,
                 headerText: item.headerText,
                 captionText: item.captionText,
-                logoImg: logoSrc,
+                logoImg: getLogoSrc(),
                 margin: 2
             }, `omnilink-qr-${item.id}.svg`);
         });
