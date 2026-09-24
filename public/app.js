@@ -1210,10 +1210,11 @@ function setupQrEventListeners() {
 
     // Studio Actions
     if (elements.studioCopyBtn) {
-        elements.studioCopyBtn.addEventListener('click', () => {
+        elements.studioCopyBtn.addEventListener('click', async () => {
             if (!window.OmniQR) return;
             const text = (qrStudio.text || '').trim() || (window.location.origin || 'https://omnilink.app');
-            const logoSrc = qrStudio.customLogoDataUrl || qrStudio.customLogoImg || (qrStudio.presetLogo !== 'none' ? qrStudio.presetLogo : null);
+            const rawLogo = qrStudio.customLogoDataUrl || qrStudio.customLogoImg || (qrStudio.presetLogo !== 'none' ? qrStudio.presetLogo : null);
+            const logoImg = await loadLogoImage(rawLogo);
             const exportCanvas = OmniQR.renderToExportCanvas({
                 text: text,
                 color: qrStudio.color,
@@ -1221,7 +1222,7 @@ function setupQrEventListeners() {
                 dotShape: qrStudio.dotShape,
                 headerText: qrStudio.headerText,
                 captionText: qrStudio.captionText,
-                logoImg: logoSrc,
+                logoImg: logoImg,
                 margin: 2
             }, 1024);
             copyCanvasToClipboard(exportCanvas);
@@ -1550,6 +1551,27 @@ function openQrModal(link) {
     openModal(elements.qrModal);
 }
 
+// Pre-load a logo src (string URL or data URI) into a fully loaded HTMLImageElement.
+// Returns the Image on success, null on failure. Always resolves (never rejects).
+function loadLogoImage(src) {
+    return new Promise((resolve) => {
+        if (!src) { resolve(null); return; }
+        if (src instanceof HTMLImageElement) {
+            if (src.complete && src.naturalWidth > 0) { resolve(src); return; }
+            src.onload  = () => resolve(src);
+            src.onerror = () => resolve(null);
+            return;
+        }
+        const img = new Image();
+        if (typeof src === 'string' && (src.startsWith('http://') || src.startsWith('https://'))) {
+            img.crossOrigin = 'anonymous';
+        }
+        img.onload  = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = src;
+    });
+}
+
 async function copyCanvasToClipboard(canvas) {
     if (!canvas) return;
     try {
@@ -1578,9 +1600,11 @@ async function copyCanvasToClipboard(canvas) {
     }
 }
 
-function downloadCanvasAsPng(opts, filename) {
+async function downloadCanvasAsPng(opts, filename) {
     if (!window.OmniQR) return;
-    const exportCanvas = OmniQR.renderToExportCanvas(opts, 1024);
+    // Pre-load logo so renderCanvas draws it synchronously (avoids async gap in toDataURL)
+    const logoImg = await loadLogoImage(opts.logoImg);
+    const exportCanvas = OmniQR.renderToExportCanvas({ ...opts, logoImg }, 1024);
     const link = document.createElement('a');
     link.download = filename;
     link.href = exportCanvas.toDataURL('image/png');
@@ -1600,6 +1624,7 @@ function downloadOptsAsSvg(opts, filename) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast('Vector SVG downloaded!');
 }
+
 
 function downloadStudioPng() {
     const text = (qrStudio.text || '').trim() || (window.location.origin || 'https://omnilink.app');
@@ -1975,8 +2000,9 @@ function renderQrHistoryList() {
 
         // Action Handlers
         card.querySelector('.qr-load-btn').addEventListener('click', () => loadHistoryItemIntoStudio(item));
-        card.querySelector('.qr-copy-btn').addEventListener('click', () => {
+        card.querySelector('.qr-copy-btn').addEventListener('click', async () => {
             if (!window.OmniQR) return;
+            const logoImg = await loadLogoImage(getLogoSrc());
             const expCanvas = OmniQR.renderToExportCanvas({
                 text: item.text,
                 color: item.color,
@@ -1984,7 +2010,7 @@ function renderQrHistoryList() {
                 dotShape: item.dotShape,
                 headerText: item.headerText,
                 captionText: item.captionText,
-                logoImg: getLogoSrc(),
+                logoImg: logoImg,
                 margin: 2
             }, 1024);
             copyCanvasToClipboard(expCanvas);

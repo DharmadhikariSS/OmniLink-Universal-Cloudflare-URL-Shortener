@@ -574,34 +574,12 @@
                 ctx.fillText(headerText, width / 2, headerHeight * 0.55);
             }
 
-            // QR matrix layout — must be declared before badge pre-computation
+            // QR matrix layout
             var qrOffsetY = headerHeight;
             var cellSize = qrAreaSize / (count + 2 * margin);
 
-            // Pre-compute badge bounds if logo is present
-            // Badges must be calculated BEFORE module drawing so we can skip dots inside the zone
-            var badgeX = 0, badgeY = 0, badgeSize = 0, badgeRadius = 0;
-            var logoPad = 0, drawLogoX = 0, drawLogoY2 = 0, drawLogoSize = 0;
-            var hasBadge = Boolean(logo);
-
-            if (hasBadge) {
-                // QR matrix actual pixel area (inside margins)
-                var qrMatrixPx = count * cellSize;
-                var qrMatrixLeft = margin * cellSize;          // x offset within qrAreaSize
-                var qrMatrixTop  = qrOffsetY + margin * cellSize; // y offset in canvas
-
-                // Badge = 15% of matrix width (area coverage ≈ 2.25%) — safely inside 30% EC-H
-                badgeSize   = qrMatrixPx * 0.15;
-                badgeX      = qrMatrixLeft + (qrMatrixPx - badgeSize) / 2;
-                badgeY      = qrMatrixTop  + (qrMatrixPx - badgeSize) / 2;
-                badgeRadius = badgeSize * 0.22;
-                logoPad     = badgeSize * 0.12;
-                drawLogoX   = badgeX + logoPad;
-                drawLogoY2  = badgeY + logoPad;
-                drawLogoSize = badgeSize - 2 * logoPad;
-            }
-
-            // Draw QR Matrix — skipping any module whose center falls inside the badge zone
+            // Draw ALL QR modules first (including alignment/timing/finder patterns)
+            // Badge will be drawn ON TOP afterwards — EC-H (30%) recovers covered data modules
             ctx.fillStyle = color;
 
             for (var r = 0; r < count; r++) {
@@ -609,18 +587,6 @@
                     if (qr.isDark(r, c)) {
                         var x = (c + margin) * cellSize;
                         var y = qrOffsetY + (r + margin) * cellSize;
-
-                        // Skip dots that fall inside the logo badge zone (leave as background)
-                        // Using cell center for the overlap check
-                        if (hasBadge) {
-                            var cx2 = x + cellSize / 2;
-                            var cy2 = y + cellSize / 2;
-                            if (cx2 >= badgeX && cx2 <= badgeX + badgeSize &&
-                                cy2 >= badgeY && cy2 <= badgeY + badgeSize) {
-                                continue; // skip — EC-H will recover these erasures
-                            }
-                        }
-
                         var isFinder = isFinderPattern(r, c, count);
 
                         if (isFinder || dotShape === 'square') {
@@ -639,44 +605,58 @@
                 }
             }
 
-            // Draw Badge + Logo on top (dots underneath are already cleared)
-            if (hasBadge) {
+            // Draw badge + logo ON TOP of QR modules
+            // Badge is 13% of QR matrix width → covers only ~1.7% of modules by area
+            // EC-H recovers up to 30% — well within safe limits
+            if (logo) {
+                var qrMatrixPx  = count * cellSize;
+                var qrMatrixLeft = margin * cellSize;
+                var qrMatrixTop  = qrOffsetY + margin * cellSize;
+                var badgeSize    = qrMatrixPx * 0.13;
+                var badgeX       = qrMatrixLeft + (qrMatrixPx - badgeSize) / 2;
+                var badgeY       = qrMatrixTop  + (qrMatrixPx - badgeSize) / 2;
+                var badgeRadius  = badgeSize * 0.22;
+                var logoPad      = badgeSize * 0.12;
+                var drawLogoX    = badgeX + logoPad;
+                var drawLogoY2   = badgeY + logoPad;
+                var drawLogoSize = badgeSize - 2 * logoPad;
+
                 // White badge background
                 ctx.fillStyle = '#ffffff';
                 ctx.beginPath();
                 drawRoundedRect(ctx, badgeX, badgeY, badgeSize, badgeSize, badgeRadius);
                 ctx.fill();
 
-                // Subtle border
                 ctx.strokeStyle = 'rgba(0,0,0,0.08)';
                 ctx.lineWidth = Math.max(cellSize * 0.3, 0.5);
                 ctx.stroke();
 
-                // Draw Logo
+                // Draw logo — logo MUST be a pre-loaded HTMLImageElement for sync drawing
+                // (callers should use loadLogoImage() helper before calling renderCanvas)
                 var drawLogo = function(img) {
                     try {
                         ctx.drawImage(img, drawLogoX, drawLogoY2, drawLogoSize, drawLogoSize);
                     } catch (e) {
-                        console.warn('Failed to draw logo on canvas:', e);
+                        console.warn('Failed to draw logo:', e);
                     }
                 };
 
                 if (logo instanceof HTMLImageElement) {
                     if (logo.complete && logo.naturalWidth > 0) {
-                        drawLogo(logo);
+                        drawLogo(logo); // synchronous — best path
                     } else {
                         logo.onload  = function() { drawLogo(logo); };
                         logo.onerror = function() { console.warn('Logo image failed to load'); };
                     }
                 } else if (typeof logo === 'string') {
-                    var logoImg2 = new Image();
-                    // Only set crossOrigin for actual remote URLs, not data URIs
+                    // Fallback for strings: async load. Downloads should pre-load via loadLogoImage()
+                    var _img = new Image();
                     if (logo.startsWith('http://') || logo.startsWith('https://')) {
-                        logoImg2.crossOrigin = 'anonymous';
+                        _img.crossOrigin = 'anonymous';
                     }
-                    logoImg2.onload  = function() { drawLogo(logoImg2); };
-                    logoImg2.onerror = function() { console.warn('Logo failed to load'); };
-                    logoImg2.src = logo;
+                    _img.onload  = function() { drawLogo(_img); };
+                    _img.onerror = function() { console.warn('Logo string failed to load'); };
+                    _img.src = logo;
                 }
             }
 
