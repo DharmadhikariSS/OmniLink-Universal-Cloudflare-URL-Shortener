@@ -192,6 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!state.adminToken) {
         setLockedState(true);
     } else {
+        autoLock.start();
         fetchLinks();
     }
 });
@@ -219,6 +220,7 @@ function initPrefix() {
 function setLockedState(isLocked) {
     state.isLocked = isLocked;
     if (isLocked) {
+        autoLock.stop();
         if (elements.adminLockGate) elements.adminLockGate.style.display = 'block';
         if (elements.shortenerBox) elements.shortenerBox.style.display = 'none';
         if (elements.mgmtSection) elements.mgmtSection.style.display = 'none';
@@ -236,6 +238,7 @@ function setLockedState(isLocked) {
         if (elements.mgmtSection) elements.mgmtSection.style.display = 'block';
         if (elements.statPill) elements.statPill.style.display = 'flex';
         if (elements.logoutBtn) elements.logoutBtn.style.display = 'inline-flex';
+        autoLock.start();
     }
 }
 
@@ -245,6 +248,103 @@ function handleLogout() {
     setLockedState(true);
     showToast('Dashboard locked');
 }
+
+// -------------------------------------------------------------
+// Auto-Lock System
+// 5 minutes inactivity → 30s countdown warning → lock
+// -------------------------------------------------------------
+const autoLock = (() => {
+    const IDLE_MS   = 5 * 60 * 1000;  // 5 minutes
+    const WARN_MS   = 30 * 1000;       // 30-second countdown
+    let idleTimer   = null;
+    let warnTimer   = null;
+    let countdownInterval = null;
+    let warningEl   = null;
+    let running     = false;
+
+    function createWarningBanner(seconds) {
+        if (warningEl) return;
+        warningEl = document.createElement('div');
+        warningEl.id = 'autoLockWarning';
+        warningEl.setAttribute('role', 'alert');
+        warningEl.innerHTML = `
+            <span id="autoLockMsg">⏱ Dashboard locking in <strong id="autoLockCount">${seconds}</strong>s due to inactivity</span>
+            <button id="autoLockStayBtn" type="button">Stay Logged In</button>
+        `;
+        document.body.appendChild(warningEl);
+
+        document.getElementById('autoLockStayBtn').addEventListener('click', () => {
+            resetIdleTimer();
+        });
+    }
+
+    function removeWarningBanner() {
+        if (warningEl) {
+            warningEl.remove();
+            warningEl = null;
+        }
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+
+    function startCountdown() {
+        let remaining = Math.round(WARN_MS / 1000);
+        createWarningBanner(remaining);
+
+        countdownInterval = setInterval(() => {
+            remaining--;
+            const countEl = document.getElementById('autoLockCount');
+            if (countEl) countEl.textContent = remaining;
+            if (remaining <= 0) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+                removeWarningBanner();
+                state.adminToken = '';
+                localStorage.removeItem('omnilink_token');
+                setLockedState(true);
+                showToast('Dashboard locked due to inactivity', 'error');
+            }
+        }, 1000);
+    }
+
+    function resetIdleTimer() {
+        if (!running) return;
+        // Cancel any active warning + countdown
+        clearTimeout(warnTimer);
+        removeWarningBanner();
+
+        // Restart idle timer
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+            // After idle period, start the warning countdown
+            warnTimer = setTimeout(startCountdown, 0);
+        }, IDLE_MS);
+    }
+
+    function onActivity() {
+        // Only reset if not already in countdown phase
+        if (!countdownInterval) resetIdleTimer();
+    }
+
+    function start() {
+        if (running) return;
+        running = true;
+        document.addEventListener('click', onActivity, { passive: true });
+        document.addEventListener('keypress', onActivity, { passive: true });
+        resetIdleTimer();
+    }
+
+    function stop() {
+        running = false;
+        clearTimeout(idleTimer);
+        clearTimeout(warnTimer);
+        removeWarningBanner();
+        document.removeEventListener('click', onActivity);
+        document.removeEventListener('keypress', onActivity);
+    }
+
+    return { start, stop, reset: resetIdleTimer };
+})();
 
 async function handleLockGateSubmit(e) {
     e.preventDefault();
