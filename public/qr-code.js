@@ -605,31 +605,41 @@
 
             // Center Logo Overlay
             if (logo) {
-                var logoSizeRatio = 0.22;
-                var badgeSize = qrAreaSize * logoSizeRatio;
-                var centerX = width / 2;
-                var centerY = qrOffsetY + qrAreaSize / 2;
+                // QR matrix actual area (inside the margin)
+                var qrMatrixSize = count * cellSize;
+                var qrMatrixOffsetX = (width - qrMatrixSize) / 2;
+                var qrMatrixOffsetY = qrOffsetY + (qrAreaSize - qrMatrixSize) / 2;
+
+                // Badge sized at 18% of QR matrix for reliable scannability (EC-H covers 30%)
+                var logoSizeRatio = 0.18;
+                var badgeSize = qrMatrixSize * logoSizeRatio;
+                // Center precisely on the QR matrix (not the whole canvas)
+                var centerX = qrMatrixOffsetX + qrMatrixSize / 2;
+                var centerY = qrMatrixOffsetY + qrMatrixSize / 2;
                 var badgeX = centerX - badgeSize / 2;
                 var badgeY = centerY - badgeSize / 2;
 
-                // Protective Badge Background (circle/rounded)
-                var badgeBg = '#ffffff';
-                ctx.fillStyle = badgeBg;
+                // Protective Badge Background
+                ctx.fillStyle = '#ffffff';
                 ctx.beginPath();
-                var badgeRadius = badgeSize * 0.24;
+                var badgeRadius = badgeSize * 0.22;
                 drawRoundedRect(ctx, badgeX, badgeY, badgeSize, badgeSize, badgeRadius);
                 ctx.fill();
 
-                // Subtle shadow/border around badge
-                ctx.strokeStyle = 'rgba(0,0,0,0.12)';
-                ctx.lineWidth = Math.max(Math.round(cellSize * 0.4), 1);
+                // Subtle border
+                ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+                ctx.lineWidth = Math.max(Math.round(cellSize * 0.35), 1);
                 ctx.stroke();
 
                 // Draw Logo Image
-                var logoPad = badgeSize * 0.16;
+                var logoPad = badgeSize * 0.14;
+                var drawLogoImg = badgeX + logoPad;
+                var drawLogoY = badgeY + logoPad;
+                var drawLogoSize = badgeSize - 2 * logoPad;
+
                 var drawLogo = function(img) {
                     try {
-                        ctx.drawImage(img, badgeX + logoPad, badgeY + logoPad, badgeSize - 2 * logoPad, badgeSize - 2 * logoPad);
+                        ctx.drawImage(img, drawLogoImg, drawLogoY, drawLogoSize, drawLogoSize);
                     } catch (e) {
                         console.warn('Failed to draw logo on canvas:', e);
                     }
@@ -639,17 +649,18 @@
                     if (logo.complete && logo.naturalWidth > 0) {
                         drawLogo(logo);
                     } else {
-                        logo.onload = function() {
-                            drawLogo(logo);
-                        };
+                        logo.onload = function() { drawLogo(logo); };
+                        logo.onerror = function() { console.warn('Logo image failed to load'); };
                     }
                 } else if (typeof logo === 'string') {
-                    var img = new Image();
-                    img.crossOrigin = 'anonymous';
-                    img.onload = function() {
-                        drawLogo(img);
-                    };
-                    img.src = logo;
+                    var logoImg2 = new Image();
+                    // Only set crossOrigin for http/https URLs, NOT for data URIs
+                    if (logo.startsWith('http://') || logo.startsWith('https://')) {
+                        logoImg2.crossOrigin = 'anonymous';
+                    }
+                    logoImg2.onload = function() { drawLogo(logoImg2); };
+                    logoImg2.onerror = function() { console.warn('Logo failed to load:', logo.substring(0, 60)); };
+                    logoImg2.src = logo;
                 }
             }
 
@@ -739,16 +750,18 @@
 
             // Center Logo Overlay
             if (logo) {
-                var logoSizeRatio = 0.22;
-                var badgeSize = qrDim * logoSizeRatio;
-                var badgeX = (qrDim - badgeSize) / 2;
-                var badgeY = qrOffsetY + (qrDim - badgeSize) / 2;
+                // Badge sized at 18% of QR matrix (not full qrDim) for scannability
+                var svgMatrixSize = count;
+                var svgLogoRatio = 0.18;
+                var badgeSize = svgMatrixSize * svgLogoRatio;
+                var badgeX = margin + (svgMatrixSize - badgeSize) / 2;
+                var badgeY = qrOffsetY + margin + (svgMatrixSize - badgeSize) / 2;
 
-                elements.push(`<rect x="${badgeX}" y="${badgeY}" width="${badgeSize}" height="${badgeSize}" rx="${badgeSize * 0.24}" fill="#ffffff" stroke="rgba(0,0,0,0.12)" stroke-width="${badgeSize * 0.05}"/>`);
-                
+                elements.push(`<rect x="${badgeX}" y="${badgeY}" width="${badgeSize}" height="${badgeSize}" rx="${badgeSize * 0.22}" fill="#ffffff" stroke="rgba(0,0,0,0.10)" stroke-width="${badgeSize * 0.04}"/>`);
+
                 var logoSrc = typeof logo === 'string' ? (PRESET_LOGOS[logo] || logo) : (logo.src || '');
                 if (logoSrc) {
-                    var pad = badgeSize * 0.16;
+                    var pad = badgeSize * 0.14;
                     elements.push(`<image href="${logoSrc}" x="${badgeX + pad}" y="${badgeY + pad}" width="${badgeSize - 2 * pad}" height="${badgeSize - 2 * pad}"/>`);
                 }
             }
