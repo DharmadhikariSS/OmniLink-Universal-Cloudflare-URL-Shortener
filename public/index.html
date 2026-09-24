@@ -125,6 +125,15 @@
                     </svg>
                     Bulk Shorten
                 </button>
+                <button class="tab-btn" id="tabQrStudio">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                    QR Studio
+                </button>
             </div>
 
             <!-- Single URL Form -->
@@ -260,6 +269,151 @@
                     </svg>
                 </button>
             </div>
+
+            <!-- QR Studio Generator -->
+            <div class="qr-studio-wrap" id="qrStudioWrap" style="display: none;">
+                <div class="qr-studio-grid">
+                    <!-- Controls Column -->
+                    <div class="qr-studio-controls">
+                        <!-- URL or Text Input -->
+                        <div class="field-group">
+                            <label for="studioTextInput">Destination URL or Text</label>
+                            <div class="field-input-wrap">
+                                <input type="text" id="studioTextInput" class="text-input" placeholder="Enter URL or any text to encode..." value="https://" />
+                            </div>
+                        </div>
+
+                        <!-- Top Header & Bottom Caption -->
+                        <div class="panel-grid" style="margin-top: 14px;">
+                            <div class="field-group">
+                                <label for="studioHeaderInput">Top Header Text (Optional)</label>
+                                <div class="field-input-wrap">
+                                    <input type="text" id="studioHeaderInput" class="text-input" placeholder="e.g. Scan to Visit" />
+                                </div>
+                            </div>
+                            <div class="field-group">
+                                <label for="studioCaptionInput">Bottom Caption Text (Optional)</label>
+                                <div class="field-input-wrap">
+                                    <input type="text" id="studioCaptionInput" class="text-input" placeholder="e.g. SCAN ME" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Center Logo / Brand Icon -->
+                        <div class="field-group" style="margin-top: 14px;">
+                            <label>Center Logo / Icon</label>
+                            <div class="preset-logos-bar" id="studioLogoPresets">
+                                <button type="button" class="preset-logo-btn active" data-preset="none">None</button>
+                                <button type="button" class="preset-logo-btn" data-preset="lightning" title="Lightning Bolt">⚡ Bolt</button>
+                                <button type="button" class="preset-logo-btn" data-preset="link" title="Link Icon">🔗 Link</button>
+                                <button type="button" class="preset-logo-btn" data-preset="globe" title="Globe Icon">🌐 Web</button>
+                                <button type="button" class="preset-logo-btn" data-preset="github" title="GitHub">GitHub</button>
+                                <button type="button" class="preset-logo-btn" data-preset="whatsapp" title="WhatsApp">WhatsApp</button>
+                            </div>
+                            <div class="logo-upload-row">
+                                <label for="studioLogoFileInput" class="btn-secondary btn-upload-label">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="17 8 12 3 7 8"></polyline>
+                                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                                    </svg>
+                                    <span>Upload Custom Logo</span>
+                                </label>
+                                <input type="file" id="studioLogoFileInput" accept="image/png,image/jpeg,image/svg+xml,image/webp" style="display: none;" />
+                                <span id="studioLogoPreviewBadge" class="logo-preview-badge" style="display: none;">
+                                    <img id="studioLogoThumb" alt="Logo preview" />
+                                    <span id="studioLogoFileName"></span>
+                                    <button type="button" id="studioLogoRemoveBtn" class="btn-icon-danger" title="Remove logo">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                    </button>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Dot Style & Shape -->
+                        <div class="field-group" style="margin-top: 14px;">
+                            <label>QR Dot Shape</label>
+                            <div class="shape-selector" id="studioShapeSelector">
+                                <button type="button" class="shape-btn active" data-shape="square">
+                                    <span class="shape-dot shape-square"></span>
+                                    Square
+                                </button>
+                                <button type="button" class="shape-btn" data-shape="rounded">
+                                    <span class="shape-dot shape-rounded"></span>
+                                    Rounded
+                                </button>
+                                <button type="button" class="shape-btn" data-shape="dots">
+                                    <span class="shape-dot shape-circle"></span>
+                                    Dots
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Colors: Foreground & Background -->
+                        <div class="panel-grid" style="margin-top: 14px;">
+                            <div class="field-group">
+                                <label>Foreground Color</label>
+                                <div class="color-picker-row">
+                                    <div class="color-swatches" id="studioColorSwatches">
+                                        <div class="color-swatch selected" data-color="#000000" style="background: #000000;" title="Classic Black"></div>
+                                        <div class="color-swatch" data-color="#10b981" style="background: #10b981;" title="Emerald"></div>
+                                        <div class="color-swatch" data-color="#6366f1" style="background: #6366f1;" title="Indigo"></div>
+                                        <div class="color-swatch" data-color="#ef4444" style="background: #ef4444;" title="Crimson"></div>
+                                        <div class="color-swatch" data-color="#06b6d4" style="background: #06b6d4;" title="Cyan"></div>
+                                        <div class="color-swatch" data-color="#8b5cf6" style="background: #8b5cf6;" title="Violet"></div>
+                                    </div>
+                                    <label class="custom-color-btn" title="Custom color picker">
+                                        <input type="color" id="studioCustomColor" value="#000000" />
+                                        <span>Custom</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="field-group">
+                                <label>Background Color</label>
+                                <div class="bg-selector" id="studioBgSelector">
+                                    <button type="button" class="bg-choice-btn active" data-bg="#ffffff">White</button>
+                                    <button type="button" class="bg-choice-btn" data-bg="#09090b">Dark</button>
+                                    <button type="button" class="bg-choice-btn" data-bg="transparent">Transparent</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Preview & Export Column -->
+                    <div class="qr-studio-preview-col">
+                        <div class="studio-canvas-card">
+                            <div class="qr-preview-box" id="studioCanvasWrap">
+                                <canvas id="studioQrCanvas" width="280" height="280"></canvas>
+                            </div>
+                            <div class="studio-actions-grid">
+                                <button type="button" class="btn-primary" id="studioCopyBtn" title="Copy QR to Clipboard">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                    <span>Copy Image</span>
+                                </button>
+                                <button type="button" class="btn-secondary" id="studioDownloadPngBtn" title="Download High-Res PNG">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="7 10 12 15 17 10"></polyline>
+                                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                                    </svg>
+                                    <span>PNG (1024px)</span>
+                                </button>
+                                <button type="button" class="btn-secondary" id="studioDownloadSvgBtn" title="Download Vector SVG">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                                        <polyline points="2 17 12 22 22 17"></polyline>
+                                        <polyline points="2 12 12 17 22 12"></polyline>
+                                    </svg>
+                                    <span>Vector SVG</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- Links Management Section -->
@@ -336,29 +490,127 @@
 
     <!-- Modal: QR Code Generator -->
     <div class="modal-overlay" id="qrModal">
-        <div class="modal-card">
+        <div class="modal-card modal-card-lg">
             <div class="modal-header">
                 <h3>QR Code Generator</h3>
                 <button class="icon-btn close-modal-btn" data-close="qrModal">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
             </div>
-            <div class="modal-body" style="text-align: center;">
-                <div class="qr-preview-box">
-                    <canvas id="qrCanvas" width="220" height="220"></canvas>
-                </div>
-                <div style="font-size: 0.88rem; font-weight: 600; margin-bottom: 12px; color: var(--text);" id="qrLinkText"></div>
-                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px;">Pick Accent Color</div>
-                <div class="color-swatches" style="justify-content: center;">
-                    <div class="color-swatch selected" data-color="#000000" style="background: #000000;" title="Classic Black"></div>
-                    <div class="color-swatch" data-color="#10b981" style="background: #10b981;" title="Emerald Green"></div>
-                    <div class="color-swatch" data-color="#6366f1" style="background: #6366f1;" title="Indigo"></div>
-                    <div class="color-swatch" data-color="#ef4444" style="background: #ef4444;" title="Crimson"></div>
+            <div class="modal-body">
+                <div class="modal-qr-layout">
+                    <!-- Top Preview Box -->
+                    <div class="qr-preview-box" id="modalQrPreviewBox">
+                        <canvas id="qrCanvas" width="220" height="220"></canvas>
+                    </div>
+                    <div class="modal-qr-link-text" id="qrLinkText"></div>
+
+                    <!-- Custom Text Options (Header / Caption) -->
+                    <div class="panel-grid" style="margin-top: 14px;">
+                        <div class="field-group">
+                            <label for="modalHeaderInput">Top Header Text (Optional)</label>
+                            <div class="field-input-wrap">
+                                <input type="text" id="modalHeaderInput" class="text-input" placeholder="e.g. Scan to Visit" />
+                            </div>
+                        </div>
+                        <div class="field-group">
+                            <label for="modalCaptionInput">Bottom Caption Text (Optional)</label>
+                            <div class="field-input-wrap">
+                                <input type="text" id="modalCaptionInput" class="text-input" placeholder="e.g. SCAN ME" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Center Logo / Brand Icon -->
+                    <div class="field-group" style="margin-top: 14px;">
+                        <label>Center Logo / Icon</label>
+                        <div class="preset-logos-bar" id="modalLogoPresets">
+                            <button type="button" class="preset-logo-btn active" data-preset="none">None</button>
+                            <button type="button" class="preset-logo-btn" data-preset="lightning" title="Lightning Bolt">⚡ Bolt</button>
+                            <button type="button" class="preset-logo-btn" data-preset="link" title="Link Icon">🔗 Link</button>
+                            <button type="button" class="preset-logo-btn" data-preset="globe" title="Globe Icon">🌐 Web</button>
+                            <button type="button" class="preset-logo-btn" data-preset="github" title="GitHub">GitHub</button>
+                            <button type="button" class="preset-logo-btn" data-preset="whatsapp" title="WhatsApp">WhatsApp</button>
+                        </div>
+                        <div class="logo-upload-row">
+                            <label for="modalLogoFileInput" class="btn-secondary btn-upload-label">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <span>Upload Custom Logo</span>
+                            </label>
+                            <input type="file" id="modalLogoFileInput" accept="image/png,image/jpeg,image/svg+xml,image/webp" style="display: none;" />
+                            <span id="modalLogoPreviewBadge" class="logo-preview-badge" style="display: none;">
+                                <img id="modalLogoThumb" alt="Logo preview" />
+                                <span id="modalLogoFileName"></span>
+                                <button type="button" id="modalLogoRemoveBtn" class="btn-icon-danger" title="Remove logo">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                </button>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- QR Dot Shape -->
+                    <div class="field-group" style="margin-top: 14px;">
+                        <label>QR Dot Shape</label>
+                        <div class="shape-selector" id="modalShapeSelector">
+                            <button type="button" class="shape-btn active" data-shape="square">
+                                <span class="shape-dot shape-square"></span>
+                                Square
+                            </button>
+                            <button type="button" class="shape-btn" data-shape="rounded">
+                                <span class="shape-dot shape-rounded"></span>
+                                Rounded
+                            </button>
+                            <button type="button" class="shape-btn" data-shape="dots">
+                                <span class="shape-dot shape-circle"></span>
+                                Dots
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Colors: Foreground & Background -->
+                    <div class="panel-grid" style="margin-top: 14px;">
+                        <div class="field-group">
+                            <label>Foreground Color</label>
+                            <div class="color-picker-row">
+                                <div class="color-swatches" id="modalColorSwatches">
+                                    <div class="color-swatch selected" data-color="#000000" style="background: #000000;" title="Classic Black"></div>
+                                    <div class="color-swatch" data-color="#10b981" style="background: #10b981;" title="Emerald"></div>
+                                    <div class="color-swatch" data-color="#6366f1" style="background: #6366f1;" title="Indigo"></div>
+                                    <div class="color-swatch" data-color="#ef4444" style="background: #ef4444;" title="Crimson"></div>
+                                    <div class="color-swatch" data-color="#06b6d4" style="background: #06b6d4;" title="Cyan"></div>
+                                    <div class="color-swatch" data-color="#8b5cf6" style="background: #8b5cf6;" title="Violet"></div>
+                                </div>
+                                <label class="custom-color-btn" title="Custom color picker">
+                                    <input type="color" id="modalCustomColor" value="#000000" />
+                                    <span>Custom</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="field-group">
+                            <label>Background Color</label>
+                            <div class="bg-selector" id="modalBgSelector">
+                                <button type="button" class="bg-choice-btn active" data-bg="#ffffff">White</button>
+                                <button type="button" class="bg-choice-btn" data-bg="#09090b">Dark</button>
+                                <button type="button" class="bg-choice-btn" data-bg="transparent">Transparent</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" id="downloadPngBtn">Download PNG</button>
-                <button class="btn-secondary" id="downloadSvgBtn">Download SVG</button>
+            <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+                <button type="button" class="btn-primary" id="modalCopyBtn" title="Copy QR to Clipboard">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>Copy Image</span>
+                </button>
+                <button type="button" class="btn-secondary" id="downloadPngBtn">PNG (1024px)</button>
+                <button type="button" class="btn-secondary" id="downloadSvgBtn">SVG</button>
             </div>
         </div>
     </div>

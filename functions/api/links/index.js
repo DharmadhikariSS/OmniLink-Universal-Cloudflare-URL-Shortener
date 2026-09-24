@@ -1,4 +1,4 @@
-import { jsonResponse, normalizeUrl, generateRandomSlug, hashPassword, checkAdminAuth } from '../../_utils.js';
+import { jsonResponse, normalizeUrl, generateRandomSlug, hashPassword, checkAdminAuth, RESERVED_SLUGS } from '../../_utils.js';
 
 export async function onRequestGet({ request, env }) {
     if (!env.DB) return jsonResponse({ error: 'Database not bound' }, 500);
@@ -84,10 +84,25 @@ export async function onRequestPost({ request, env }) {
             for (const item of body.urls) {
                 const target = normalizeUrl(typeof item === 'string' ? item : item.url);
                 if (!target) {
-                    errors.push({ item, error: 'Invalid URL' });
+                    errors.push({ item, error: 'Invalid URL or unsafe scheme' });
                     continue;
                 }
-                const slug = (item.slug || generateRandomSlug(6)).trim();
+                let slug = (item.slug || '').trim();
+                if (slug) {
+                    if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
+                        errors.push({ item, error: `Slug "${slug}" can only contain letters, numbers, hyphens, and underscores` });
+                        continue;
+                    }
+                    if (RESERVED_SLUGS.has(slug.toLowerCase())) {
+                        errors.push({ item, error: `Slug "${slug}" is a reserved system route` });
+                        continue;
+                    }
+                } else {
+                    slug = generateRandomSlug(6);
+                    while (RESERVED_SLUGS.has(slug.toLowerCase())) {
+                        slug = generateRandomSlug(6);
+                    }
+                }
                 const existing = await env.DB.prepare('SELECT id FROM links WHERE slug = ?').bind(slug).first();
                 if (existing) {
                     errors.push({ item, error: `Slug "${slug}" already exists` });
@@ -110,7 +125,7 @@ export async function onRequestPost({ request, env }) {
         const { target_url, custom_slug, title, password, expires_at, max_clicks } = body;
         const normalized = normalizeUrl(target_url);
         if (!normalized) {
-            return jsonResponse({ error: 'Please enter a valid destination URL or protocol' }, 400);
+            return jsonResponse({ error: 'Please enter a valid destination URL or protocol (unsafe schemes disallowed)' }, 400);
         }
 
         let slug = (custom_slug || '').trim();
@@ -118,6 +133,9 @@ export async function onRequestPost({ request, env }) {
             // Slug validation: alphanumeric, dashes, underscores
             if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
                 return jsonResponse({ error: 'Slug can only contain letters, numbers, hyphens, and underscores' }, 400);
+            }
+            if (RESERVED_SLUGS.has(slug.toLowerCase())) {
+                return jsonResponse({ error: `Slug "${slug}" is a reserved system route and cannot be used` }, 400);
             }
             const existing = await env.DB.prepare('SELECT id FROM links WHERE slug = ?').bind(slug).first();
             if (existing) {
@@ -128,6 +146,10 @@ export async function onRequestPost({ request, env }) {
             let attempts = 0;
             while (attempts < 5) {
                 const candidate = generateRandomSlug(6);
+                if (RESERVED_SLUGS.has(candidate.toLowerCase())) {
+                    attempts++;
+                    continue;
+                }
                 const existing = await env.DB.prepare('SELECT id FROM links WHERE slug = ?').bind(candidate).first();
                 if (!existing) {
                     slug = candidate;

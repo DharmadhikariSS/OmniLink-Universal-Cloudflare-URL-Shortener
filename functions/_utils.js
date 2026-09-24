@@ -43,11 +43,27 @@ export function parseUserAgent(ua = '') {
     return { device_type, os, browser };
 }
 
-// Normalizes and validates ANY URL scheme
+// Dangerous schemes that can execute code or lead to XSS
+const DANGEROUS_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:', 'blob:'];
+
+export const RESERVED_SLUGS = new Set([
+    'api', 'gate', 'index', 'index.html', 'style.css', 'app.js', 'gate.html',
+    'qr-code.js', 'favicon.ico', 'robots.txt', 'analytics', 'export', 'auth',
+    'settings', 'links', 'verify-gate'
+]);
+
+// Normalizes and validates ANY URL scheme while blocking XSS/dangerous execution schemes
 export function normalizeUrl(rawUrl) {
     if (!rawUrl || typeof rawUrl !== 'string') return null;
     const trimmed = rawUrl.trim();
     if (!trimmed) return null;
+
+    const lower = trimmed.toLowerCase();
+    for (const dangerous of DANGEROUS_SCHEMES) {
+        if (lower.startsWith(dangerous)) {
+            return null;
+        }
+    }
 
     // Check if it already has a protocol/scheme (e.g. https://, http://, mailto:, tel:, magnet:, whatsapp://, tg://, etc.)
     const schemeRegex = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
@@ -57,6 +73,74 @@ export function normalizeUrl(rawUrl) {
 
     // If no scheme, default to https://
     return `https://${trimmed}`;
+}
+
+export function isExternalScheme(url) {
+    if (!url) return false;
+    const lower = url.toLowerCase();
+    return !lower.startsWith('http://') && !lower.startsWith('https://');
+}
+
+export function generateProtocolRedirectHtml(url, title = 'Application') {
+    const escapedUrl = url.replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    const safeTitle = (title || 'Application').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opening ${safeTitle} | OmniLink</title>
+    <meta http-equiv="refresh" content="0; url=${escapedUrl}">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #09090b; color: #f4f4f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .card { background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 36px 28px; max-width: 440px; width: 100%; text-align: center; }
+        h1 { font-size: 1.3rem; margin-bottom: 12px; }
+        p { color: #a1a1aa; font-size: 0.95rem; line-height: 1.5; margin-bottom: 24px; word-break: break-all; }
+        .btn { display: inline-block; background: #10b981; color: #000; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; transition: opacity 0.2s; }
+        .btn:hover { opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Redirecting to Application...</h1>
+        <p>Opening external protocol application. If your application does not open automatically, click the button below:</p>
+        <a href="${escapedUrl}" class="btn">Launch Application</a>
+    </div>
+    <script>
+        setTimeout(function() {
+            window.location.href = ${JSON.stringify(url)};
+        }, 50);
+    </script>
+</body>
+</html>`;
+}
+
+export async function hashIp(ip, salt = 'omnilink-ip-salt-2024') {
+    if (!ip) return 'unknown';
+    const encoder = new TextEncoder();
+    const data = encoder.encode(ip + salt);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+const rateLimitMap = new Map();
+export function checkRateLimit(key, maxAttempts = 20, windowMs = 5 * 60 * 1000) {
+    const now = Date.now();
+    const record = rateLimitMap.get(key) || { count: 0, resetAt: now + windowMs };
+    if (now > record.resetAt) {
+        record.count = 1;
+        record.resetAt = now + windowMs;
+        rateLimitMap.set(key, record);
+        return true;
+    }
+    if (record.count >= maxAttempts) {
+        return false;
+    }
+    record.count++;
+    rateLimitMap.set(key, record);
+    return true;
 }
 
 export function jsonResponse(data, status = 200, headers = {}) {

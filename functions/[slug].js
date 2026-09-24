@@ -1,12 +1,11 @@
-import { parseUserAgent, hashPassword } from './_utils.js';
+import { parseUserAgent, hashPassword, hashIp, RESERVED_SLUGS, isExternalScheme, generateProtocolRedirectHtml } from './_utils.js';
 
 export async function onRequestGet(context) {
     const { request, env, params, waitUntil, next } = context;
     const slug = params.slug ? params.slug.trim() : '';
 
     // Ignore reserved routes and assets
-    const reserved = ['api', 'gate', 'index.html', 'style.css', 'app.js', 'gate.html', 'favicon.ico', 'robots.txt'];
-    if (!slug || reserved.includes(slug.toLowerCase()) || slug.includes('.')) {
+    if (!slug || RESERVED_SLUGS.has(slug.toLowerCase()) || slug.includes('.')) {
         return next();
     }
 
@@ -76,7 +75,7 @@ export async function onRequestGet(context) {
         const recordClick = async () => {
             try {
                 const clientIp = request.headers.get('cf-connecting-ip') || request.headers.get('x-forwarded-for') || '127.0.0.1';
-                const ipHash = await hashPassword(clientIp.split(',')[0].trim());
+                const ipHash = await hashIp(clientIp.split(',')[0].trim());
                 const userAgent = request.headers.get('user-agent') || '';
                 const { device_type, os, browser } = parseUserAgent(userAgent);
                 
@@ -116,7 +115,17 @@ export async function onRequestGet(context) {
             recordClick();
         }
 
-        // Redirect visitor to target URL
+        // Redirect visitor to target URL (with fallback HTML for external schemes)
+        if (isExternalScheme(link.target_url)) {
+            return new Response(generateProtocolRedirectHtml(link.target_url, link.title), {
+                status: 302,
+                headers: {
+                    'Location': link.target_url,
+                    'Content-Type': 'text/html; charset=utf-8'
+                }
+            });
+        }
+
         return Response.redirect(link.target_url, 302);
 
     } catch (err) {

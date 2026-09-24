@@ -172,6 +172,12 @@
                 });
                 const data = await res.json();
                 if (res.ok && data.success && data.target_url) {
+                    const lower = data.target_url.trim().toLowerCase();
+                    if (lower.startsWith('javascript:') || lower.startsWith('data:') || lower.startsWith('vbscript:')) {
+                        errorMsg.textContent = 'Unsafe destination blocked.';
+                        errorMsg.style.display = 'block';
+                        return;
+                    }
                     window.location.href = data.target_url;
                 } else {
                     errorMsg.textContent = data.error || 'Incorrect passcode. Please try again.';

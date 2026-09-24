@@ -20,7 +20,12 @@ export async function onRequestGet({ request, env }) {
             const shortUrl = `${origin}/${row.slug}`;
             const clean = (val) => {
                 if (val === null || val === undefined) return '""';
-                const str = String(val).replace(/"/g, '""');
+                let str = String(val);
+                // Mitigate CSV Formula Injection (CWE-1236)
+                if (/^[=+\-@\t\r]/.test(str)) {
+                    str = "'" + str;
+                }
+                str = str.replace(/"/g, '""');
                 return `"${str}"`;
             };
 

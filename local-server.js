@@ -28,6 +28,37 @@ function hashPassword(password, salt = 'omnilink-salt-2024') {
     return crypto.createHash('sha256').update(password + salt).digest('hex');
 }
 
+function hashIp(ip, salt = 'omnilink-ip-salt-2024') {
+    if (!ip) return 'unknown';
+    return crypto.createHash('sha256').update(ip + salt).digest('hex');
+}
+
+const rateLimitMap = new Map();
+function checkRateLimit(key, maxAttempts = 20, windowMs = 5 * 60 * 1000) {
+    const now = Date.now();
+    const record = rateLimitMap.get(key) || { count: 0, resetAt: now + windowMs };
+    if (now > record.resetAt) {
+        record.count = 1;
+        record.resetAt = now + windowMs;
+        rateLimitMap.set(key, record);
+        return true;
+    }
+    if (record.count >= maxAttempts) {
+        return false;
+    }
+    record.count++;
+    rateLimitMap.set(key, record);
+    return true;
+}
+
+const RESERVED_SLUGS = new Set([
+    'api', 'gate', 'index', 'index.html', 'style.css', 'app.js', 'gate.html',
+    'qr-code.js', 'favicon.ico', 'robots.txt', 'analytics', 'export', 'auth',
+    'settings', 'links', 'verify-gate'
+]);
+
+const DANGEROUS_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:', 'blob:'];
+
 function parseUserAgent(ua = '') {
     const userAgent = ua.toLowerCase();
     let device_type = 'Desktop';
@@ -62,9 +93,58 @@ function normalizeUrl(rawUrl) {
     if (!rawUrl || typeof rawUrl !== 'string') return null;
     const trimmed = rawUrl.trim();
     if (!trimmed) return null;
+
+    const lower = trimmed.toLowerCase();
+    for (const dangerous of DANGEROUS_SCHEMES) {
+        if (lower.startsWith(dangerous)) {
+            return null;
+        }
+    }
+
     const schemeRegex = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
     if (schemeRegex.test(trimmed)) return trimmed;
     return `https://${trimmed}`;
+}
+
+function isExternalScheme(url) {
+    if (!url) return false;
+    const lower = url.toLowerCase();
+    return !lower.startsWith('http://') && !lower.startsWith('https://');
+}
+
+function renderProtocolRedirect(url, title = 'Application') {
+    const escapedUrl = url.replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    const safeTitle = (title || 'Application').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opening ${safeTitle} | OmniLink</title>
+    <meta http-equiv="refresh" content="0; url=${escapedUrl}">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #09090b; color: #f4f4f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .card { background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 36px 28px; max-width: 440px; width: 100%; text-align: center; }
+        h1 { font-size: 1.3rem; margin-bottom: 12px; }
+        p { color: #a1a1aa; font-size: 0.95rem; line-height: 1.5; margin-bottom: 24px; word-break: break-all; }
+        .btn { display: inline-block; background: #10b981; color: #000; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; transition: opacity 0.2s; }
+        .btn:hover { opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Redirecting to Application...</h1>
+        <p>Opening external protocol application. If your application does not open automatically, click the button below:</p>
+        <a href="${escapedUrl}" class="btn">Launch Application</a>
+    </div>
+    <script>
+        setTimeout(function() {
+            window.location.href = ${JSON.stringify(url)};
+        }, 50);
+    </script>
+</body>
+</html>`;
 }
 
 function generateRandomSlug(length = 6) {
@@ -83,6 +163,11 @@ function checkAdminAuth(req) {
     const token = authHeader.replace(/^Bearer\s+/i, '').trim() || (typeof customHeader === 'string' ? customHeader.trim() : '');
 
     if (!token) return false;
+
+    // Check ADMIN_KEY environment variable if defined
+    if (process.env.ADMIN_KEY) {
+        return token === process.env.ADMIN_KEY;
+    }
 
     try {
         const stmt = db.prepare('SELECT value FROM settings WHERE key = ?');
@@ -211,8 +296,19 @@ const server = http.createServer(async (req, res) => {
                 const body = await readBody(req);
                 const { action, password, newPassword } = body;
 
+                const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+                if (!checkRateLimit(`auth:${String(clientIp).split(',')[0].trim()}`, 15)) {
+                    return sendJson(res, { error: 'Too many attempts. Please try again later.' }, 429);
+                }
+
                 if (action === 'verify') {
                     if (!password) return sendJson(res, { error: 'Password is required' }, 400);
+                    if (process.env.ADMIN_KEY) {
+                        if (password === process.env.ADMIN_KEY) {
+                            return sendJson(res, { success: true, token: password });
+                        }
+                        return sendJson(res, { error: 'Invalid admin passcode' }, 401);
+                    }
                     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_hash');
                     if (!row || !row.value) {
                         return sendJson(res, { error: 'Admin passcode is not configured' }, 401);
@@ -225,6 +321,9 @@ const server = http.createServer(async (req, res) => {
                 }
 
                 if (action === 'setup') {
+                    if (process.env.ADMIN_KEY) {
+                        return sendJson(res, { error: 'Admin key is managed via environment variable ADMIN_KEY.' }, 400);
+                    }
                     if (!newPassword || newPassword.length < 4) {
                         return sendJson(res, { error: 'Password must be at least 4 characters' }, 400);
                     }
@@ -238,6 +337,9 @@ const server = http.createServer(async (req, res) => {
                 }
 
                 if (action === 'change') {
+                    if (process.env.ADMIN_KEY) {
+                        return sendJson(res, { error: 'Admin key is managed via environment variable ADMIN_KEY.' }, 400);
+                    }
                     if (!checkAdminAuth(req)) return sendJson(res, { error: 'Unauthorized' }, 401);
                     if (!newPassword || newPassword.length < 4) {
                         return sendJson(res, { error: 'New password must be at least 4 characters' }, 400);
@@ -255,21 +357,60 @@ const server = http.createServer(async (req, res) => {
         // API: Verify Gate Password
         // ---------------------------------------------
         if (pathname === '/api/verify-gate' && req.method === 'POST') {
+            const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+            if (!checkRateLimit(`gate:${String(clientIp).split(',')[0].trim()}`, 15)) {
+                return sendJson(res, { error: 'Too many attempts. Please try again later.' }, 429);
+            }
+
             const { slug, password } = await readBody(req);
             if (!slug || !password) return sendJson(res, { error: 'Slug and password required' }, 400);
 
-            const link = db.prepare('SELECT target_url, password_hash FROM links WHERE slug = ?').get(slug);
+            const link = db.prepare('SELECT * FROM links WHERE slug = ?').get(slug);
             if (!link) return sendJson(res, { error: 'Link not found' }, 404);
 
-            if (!link.password_hash) {
-                return sendJson(res, { success: true, target_url: link.target_url });
+            // Check active status
+            if (link.is_active === 0) {
+                return sendJson(res, { error: 'This link is currently inactive or has been paused by the owner.' }, 410);
             }
 
-            const hashed = hashPassword(password);
-            if (hashed === link.password_hash) {
-                return sendJson(res, { success: true, target_url: link.target_url });
+            // Check expiration
+            if (link.expires_at) {
+                const expireTime = new Date(link.expires_at).getTime();
+                if (Date.now() > expireTime) {
+                    return sendJson(res, { error: 'This link has expired.' }, 410);
+                }
             }
-            return sendJson(res, { error: 'Incorrect passcode' }, 401);
+
+            // Check click limit
+            if (link.max_clicks !== null && link.max_clicks > 0 && link.clicks_count >= link.max_clicks) {
+                return sendJson(res, { error: 'This link has reached its maximum permitted number of clicks.' }, 410);
+            }
+
+            if (link.password_hash) {
+                const hashed = hashPassword(password);
+                if (hashed !== link.password_hash) {
+                    return sendJson(res, { error: 'Incorrect passcode' }, 401);
+                }
+            }
+
+            // Record click asynchronously
+            setImmediate(() => {
+                try {
+                    const ipHash = hashIp(String(clientIp).split(',')[0].trim());
+                    const userAgent = req.headers['user-agent'] || '';
+                    const { device_type, os, browser } = parseUserAgent(userAgent);
+                    const clickId = crypto.randomUUID();
+                    const now = new Date().toISOString();
+                    db.prepare(
+                        'INSERT INTO clicks (id, link_id, timestamp, country, city, referrer, device_type, browser, os, ip_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    ).run(clickId, link.id, now, 'Local', 'Localhost', 'Direct', device_type, browser, os, ipHash);
+                    db.prepare('UPDATE links SET clicks_count = clicks_count + 1 WHERE id = ?').run(link.id);
+                } catch (err) {
+                    console.error('Error logging gate click:', err);
+                }
+            });
+
+            return sendJson(res, { success: true, target_url: link.target_url });
         }
 
         // ---------------------------------------------
@@ -288,7 +429,11 @@ const server = http.createServer(async (req, res) => {
                 const shortUrl = `${origin}/${row.slug}`;
                 const clean = (val) => {
                     if (val === null || val === undefined) return '""';
-                    const str = String(val).replace(/"/g, '""');
+                    let str = String(val);
+                    if (/^[=+\-@\t\r]/.test(str)) {
+                        str = "'" + str;
+                    }
+                    str = str.replace(/"/g, '""');
                     return `"${str}"`;
                 };
 
@@ -440,10 +585,25 @@ const server = http.createServer(async (req, res) => {
                     for (const item of body.urls) {
                         const target = normalizeUrl(typeof item === 'string' ? item : item.url);
                         if (!target) {
-                            errors.push({ item, error: 'Invalid URL' });
+                            errors.push({ item, error: 'Invalid URL or unsafe scheme' });
                             continue;
                         }
-                        const slug = (item.slug || generateRandomSlug(6)).trim();
+                        let slug = (item.slug || '').trim();
+                        if (slug) {
+                            if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
+                                errors.push({ item, error: `Slug "${slug}" can only contain letters, numbers, hyphens, and underscores` });
+                                continue;
+                            }
+                            if (RESERVED_SLUGS.has(slug.toLowerCase())) {
+                                errors.push({ item, error: `Slug "${slug}" is a reserved system route` });
+                                continue;
+                            }
+                        } else {
+                            slug = generateRandomSlug(6);
+                            while (RESERVED_SLUGS.has(slug.toLowerCase())) {
+                                slug = generateRandomSlug(6);
+                            }
+                        }
                         const existing = db.prepare('SELECT id FROM links WHERE slug = ?').get(slug);
                         if (existing) {
                             errors.push({ item, error: `Slug "${slug}" already exists` });
@@ -466,13 +626,16 @@ const server = http.createServer(async (req, res) => {
                 const { target_url, custom_slug, title, password, expires_at, max_clicks } = body;
                 const normalized = normalizeUrl(target_url);
                 if (!normalized) {
-                    return sendJson(res, { error: 'Please enter a valid destination URL or protocol' }, 400);
+                    return sendJson(res, { error: 'Please enter a valid destination URL or protocol (unsafe schemes disallowed)' }, 400);
                 }
 
                 let slug = (custom_slug || '').trim();
                 if (slug) {
                     if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
                         return sendJson(res, { error: 'Slug can only contain letters, numbers, hyphens, and underscores' }, 400);
+                    }
+                    if (RESERVED_SLUGS.has(slug.toLowerCase())) {
+                        return sendJson(res, { error: `Slug "${slug}" is a reserved system route and cannot be used` }, 400);
                     }
                     const existing = db.prepare('SELECT id FROM links WHERE slug = ?').get(slug);
                     if (existing) {
@@ -482,6 +645,10 @@ const server = http.createServer(async (req, res) => {
                     let attempts = 0;
                     while (attempts < 5) {
                         const candidate = generateRandomSlug(6);
+                        if (RESERVED_SLUGS.has(candidate.toLowerCase())) {
+                            attempts++;
+                            continue;
+                        }
                         const existing = db.prepare('SELECT id FROM links WHERE slug = ?').get(candidate);
                         if (!existing) {
                             slug = candidate;
@@ -547,12 +714,18 @@ const server = http.createServer(async (req, res) => {
                 if (!existing) return sendJson(res, { error: 'Link not found' }, 404);
 
                 const target_url = body.target_url ? normalizeUrl(body.target_url) : existing.target_url;
+                if (!target_url) {
+                    return sendJson(res, { error: 'Please enter a valid destination URL or protocol (unsafe schemes disallowed)' }, 400);
+                }
                 const title = body.title !== undefined ? body.title : existing.title;
                 const newSlug = body.slug ? body.slug.trim() : existing.slug;
 
                 if (newSlug !== existing.slug) {
                     if (!/^[a-zA-Z0-9_-]+$/.test(newSlug)) {
                         return sendJson(res, { error: 'Slug can only contain letters, numbers, hyphens, and underscores' }, 400);
+                    }
+                    if (RESERVED_SLUGS.has(newSlug.toLowerCase())) {
+                        return sendJson(res, { error: `Slug "${newSlug}" is a reserved system route and cannot be used` }, 400);
                     }
                     const duplicate = db.prepare('SELECT id FROM links WHERE slug = ? AND id != ?').get(newSlug, id);
                     if (duplicate) return sendJson(res, { error: `Slug "${newSlug}" is already taken` }, 409);
@@ -610,7 +783,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         // ---------------------------------------------
-        // Static Files Serving
+        // Static Files Serving (Secured against path traversal)
         // ---------------------------------------------
         let staticFile = null;
         if (pathname === '/' || pathname === '/index.html') {
@@ -618,9 +791,9 @@ const server = http.createServer(async (req, res) => {
         } else if (pathname === '/gate' || pathname === '/gate.html') {
             staticFile = path.join(PUBLIC_DIR, 'gate.html');
         } else {
-            const potentialFile = path.join(PUBLIC_DIR, pathname);
-            if (fs.existsSync(potentialFile) && fs.statSync(potentialFile).isFile()) {
-                staticFile = potentialFile;
+            const safePath = path.resolve(PUBLIC_DIR, '.' + pathname);
+            if (safePath.startsWith(PUBLIC_DIR) && fs.existsSync(safePath) && fs.statSync(safePath).isFile()) {
+                staticFile = safePath;
             }
         }
 
@@ -632,7 +805,7 @@ const server = http.createServer(async (req, res) => {
         // Dynamic Slug Redirection (/:slug)
         // ---------------------------------------------
         const slug = pathname.replace(/^\//, '').trim();
-        if (slug && !slug.includes('/')) {
+        if (slug && !slug.includes('/') && !RESERVED_SLUGS.has(slug.toLowerCase()) && !slug.includes('.')) {
             const link = db.prepare('SELECT * FROM links WHERE slug = ?').get(slug);
 
             if (!link) {
@@ -677,7 +850,7 @@ const server = http.createServer(async (req, res) => {
             setImmediate(() => {
                 try {
                     const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
-                    const ipHash = hashPassword(String(clientIp).split(',')[0].trim());
+                    const ipHash = hashIp(String(clientIp).split(',')[0].trim());
                     const userAgent = req.headers['user-agent'] || '';
                     const { device_type, os, browser } = parseUserAgent(userAgent);
                     
@@ -706,7 +879,15 @@ const server = http.createServer(async (req, res) => {
                 }
             });
 
-            // Redirect visitor
+            // Redirect visitor (with fallback HTML for non-HTTP schemes)
+            if (isExternalScheme(link.target_url)) {
+                res.writeHead(302, {
+                    'Location': link.target_url,
+                    'Content-Type': 'text/html; charset=utf-8'
+                });
+                return res.end(renderProtocolRedirect(link.target_url, link.title));
+            }
+
             res.writeHead(302, { 'Location': link.target_url });
             return res.end();
         }

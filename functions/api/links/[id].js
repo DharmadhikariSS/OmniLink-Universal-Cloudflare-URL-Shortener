@@ -1,4 +1,4 @@
-import { jsonResponse, normalizeUrl, hashPassword, checkAdminAuth } from '../../_utils.js';
+import { jsonResponse, normalizeUrl, hashPassword, checkAdminAuth, RESERVED_SLUGS } from '../../_utils.js';
 
 export async function onRequestGet({ params, env, request }) {
     if (!env.DB) return jsonResponse({ error: 'Database not bound' }, 500);
@@ -34,12 +34,18 @@ export async function onRequestPut({ params, request, env }) {
         if (!existing) return jsonResponse({ error: 'Link not found' }, 404);
 
         const target_url = body.target_url ? normalizeUrl(body.target_url) : existing.target_url;
+        if (!target_url) {
+            return jsonResponse({ error: 'Please enter a valid destination URL or protocol (unsafe schemes disallowed)' }, 400);
+        }
         const title = body.title !== undefined ? body.title : existing.title;
         const newSlug = body.slug ? body.slug.trim() : existing.slug;
 
         if (newSlug !== existing.slug) {
             if (!/^[a-zA-Z0-9_-]+$/.test(newSlug)) {
                 return jsonResponse({ error: 'Slug can only contain letters, numbers, hyphens, and underscores' }, 400);
+            }
+            if (RESERVED_SLUGS.has(newSlug.toLowerCase())) {
+                return jsonResponse({ error: `Slug "${newSlug}" is a reserved system route and cannot be used` }, 400);
             }
             const duplicate = await env.DB.prepare('SELECT id FROM links WHERE slug = ? AND id != ?').bind(newSlug, id).first();
             if (duplicate) {
